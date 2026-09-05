@@ -46,6 +46,41 @@ export interface PulseEngineResult {
   normalEvents: PulseEvent[]
 }
 
+/**
+ * Calculates effective market trading minutes between two dates.
+ * Standard NSE/BSE session is 375 minutes (09:15 to 15:30), excluding weekends.
+ */
+export function calculateTradingMinutes(startDate: Date, endDate: Date): number {
+  const start = new Date(startDate)
+  const end = new Date(endDate)
+  if (end.getTime() <= start.getTime()) return 1
+
+  const totalCalendarMs = end.getTime() - start.getTime()
+  const totalCalendarHours = totalCalendarMs / (1000 * 60 * 60)
+
+  // For intraday intervals (<= 8 hours), use elapsed minutes capped at 1 trading session (375m)
+  if (totalCalendarHours <= 8) {
+    return Math.max(1, Math.min(375, Math.round(totalCalendarMs / (1000 * 60))))
+  }
+
+  // For multi-day intervals, count trading business days (Mon-Fri)
+  let businessDays = 0
+  const cur = new Date(start)
+  cur.setUTCHours(0, 0, 0, 0)
+  const endDay = new Date(end)
+  endDay.setUTCHours(0, 0, 0, 0)
+
+  while (cur.getTime() <= endDay.getTime()) {
+    const dayOfWeek = cur.getUTCDay()
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      businessDays++
+    }
+    cur.setUTCDate(cur.getUTCDate() + 1)
+  }
+
+  return Math.max(1, businessDays * 375)
+}
+
 export class PulseEngine {
   /**
    * Pure deterministic calculation for a single symbol.
@@ -168,8 +203,8 @@ export class PulseEngine {
     }
 
     // 7. Interval-aware scaling: sigma_expected = sigma_base * sqrt(N) (Section 32)
-    const awayDurationMinutes = Math.max(1, (evaluationTime.getTime() - referenceTime.getTime()) / (1000 * 60))
-    const numBaseIntervals = Math.max(1, awayDurationMinutes / config.baseIntervalMinutes)
+    const tradingMinutes = calculateTradingMinutes(referenceTime, evaluationTime)
+    const numBaseIntervals = Math.max(1, tradingMinutes / config.baseIntervalMinutes)
     const expectedMovement = baseVol * Math.sqrt(numBaseIntervals)
     const expectedMovementPercent = Number((expectedMovement * 100).toFixed(2))
 
