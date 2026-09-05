@@ -1,0 +1,59 @@
+-- Groww Pulse PostgreSQL Schema
+
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  auth_provider_id TEXT UNIQUE NOT NULL,
+  email TEXT UNIQUE NOT NULL,
+  password_hash TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS symbols (
+  symbol TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  exchange TEXT NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'INR',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS watchlists (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS watchlist_items (
+  id TEXT PRIMARY KEY,
+  watchlist_id TEXT NOT NULL REFERENCES watchlists(id) ON DELETE CASCADE,
+  symbol TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT uq_watchlist_symbol UNIQUE (watchlist_id, symbol)
+);
+
+CREATE TABLE IF NOT EXISTS market_snapshots (
+  id TEXT PRIMARY KEY,
+  symbol TEXT NOT NULL,
+  price NUMERIC(14, 4) NOT NULL,
+  volume NUMERIC(18, 4),
+  source TEXT NOT NULL,
+  source_timestamp TIMESTAMPTZ NOT NULL,
+  received_timestamp TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_snapshots_symbol_time ON market_snapshots(symbol, source_timestamp DESC);
+
+CREATE TABLE IF NOT EXISTS user_symbol_state (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  symbol TEXT NOT NULL,
+  last_seen_timestamp TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT uq_user_symbol UNIQUE (user_id, symbol)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_symbol_state_user ON user_symbol_state(user_id);
