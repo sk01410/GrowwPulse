@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -54,6 +54,7 @@ export default function DashboardPage() {
   const [mutingSymbolId, setMutingSymbolId] = useState<string | null>(null)
   const [openMuteDropdown, setOpenMuteDropdown] = useState<string | null>(null)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [demoActiveSession, setDemoActiveSession] = useState(false)
   const [isScorecardOpen, setIsScorecardOpen] = useState(false)
   const [isDemoTourOpen, setIsDemoTourOpen] = useState(false)
   const [isNotifOpen, setIsNotifOpen] = useState(false)
@@ -256,6 +257,158 @@ export default function DashboardPage() {
   const activeWatchlist = watchlists.find(w => w.id === selectedWatchlistId) || watchlists[0]
   const existingSymbols = (activeWatchlist?.items || []).map((i: any) => i.symbol.toUpperCase())
 
+  const effectivePulseData = useMemo(() => {
+    if (!pulseData) return null
+    if (!demoActiveSession) return pulseData
+
+    const demoRankedEvents: PulseEvent[] = [
+      {
+        eventId: 'RELIANCE',
+        symbol: 'RELIANCE',
+        exchange: 'NSE',
+        referenceTime: new Date(Date.now() - 4 * 3600 * 1000).toISOString(),
+        evaluationTime: new Date().toISOString(),
+        referencePrice: 2840.0,
+        evaluationPrice: 2978.5,
+        return: 138.5,
+        returnPercent: 4.88,
+        expectedMovement: 41.2,
+        expectedMovementPercent: 1.45,
+        unusualness: 3.82,
+        attentionLevel: 'HIGH_ATTENTION',
+        confidence: 'HIGH',
+        explanation: 'Sharp price appreciation (+4.88%) exceeds expected volatility (±1.45%) by 3.82× standard deviations with heavy institutional volume.',
+        whySurfaced: 'Price increased 4.88% (3.82× expected interval volatility)',
+        hasMeaningfulMovement: true,
+        volumeMultiplier: 2.8,
+        catalyst: {
+          category: 'EARNINGS_BEAT',
+          headline: 'Reliance Retail & Jio posting record operational EBITDA with telecom tariff hike inflection.',
+          source: 'Live Financial Wire',
+          sentiment: 'POSITIVE',
+          summary: 'Reliance Retail & Jio posting record operational EBITDA with telecom tariff hike inflection.',
+          url: 'https://groww.in',
+        },
+        sectorContext: {
+          sectorName: 'Nifty Energy & Oil',
+          benchmarkIndex: 'Nifty Energy Index',
+          sectorChangePercent: 1.2,
+          idiosyncraticDivergence: 3.68,
+          isSectorWide: false,
+          relativeNarrative: 'Company-specific alpha: RELIANCE gained +4.88% vs Nifty Energy (+1.20%), delivering +3.68% idiosyncratic divergence.',
+        },
+        provenance: {
+          source: 'NSE Realtime Feed',
+          observedTimestamp: new Date().toISOString(),
+          receivedTimestamp: new Date().toISOString(),
+          isFresh: true,
+        },
+        watchReason: 'OWN_IT',
+      },
+      {
+        eventId: 'TATASTEEL',
+        symbol: 'TATASTEEL',
+        exchange: 'NSE',
+        referenceTime: new Date(Date.now() - 4 * 3600 * 1000).toISOString(),
+        evaluationTime: new Date().toISOString(),
+        referencePrice: 148.2,
+        evaluationPrice: 153.25,
+        return: 5.05,
+        returnPercent: 3.41,
+        expectedMovement: 1.85,
+        expectedMovementPercent: 1.25,
+        unusualness: 2.9,
+        attentionLevel: 'HIGH_ATTENTION',
+        confidence: 'HIGH',
+        explanation: 'Strong idiosyncratic rally (+3.41%) driven by international coking coal price drop and European green transition cost turnaround.',
+        whySurfaced: 'Price surged 3.41% with notable raw material cost relief',
+        hasMeaningfulMovement: true,
+        volumeMultiplier: 2.1,
+        catalyst: {
+          category: 'METALS_RECOVERY',
+          headline: 'Global coking coal costs drop 14% providing major EBITDA margin relief for Indian steelmakers.',
+          source: 'Commodity Desk',
+          sentiment: 'POSITIVE',
+          summary: 'Global coking coal costs drop 14% providing major EBITDA margin relief for Indian steelmakers.',
+          url: 'https://groww.in',
+        },
+        sectorContext: {
+          sectorName: 'Nifty Metal',
+          benchmarkIndex: 'Nifty Metal Index',
+          sectorChangePercent: -0.6,
+          idiosyncraticDivergence: 4.01,
+          isSectorWide: false,
+          relativeNarrative: 'Significant alpha: TATASTEEL rallied +3.41% while the Nifty Metal sector fell -0.60% (+4.01% alpha divergence).',
+        },
+        provenance: {
+          source: 'NSE Realtime Feed',
+          observedTimestamp: new Date().toISOString(),
+          receivedTimestamp: new Date().toISOString(),
+          isFresh: true,
+        },
+        watchReason: 'PRICE_TARGET',
+        targetPrice: 155.0,
+      },
+      {
+        eventId: 'ZOMATO',
+        symbol: 'ZOMATO',
+        exchange: 'NSE',
+        referenceTime: new Date(Date.now() - 4 * 3600 * 1000).toISOString(),
+        evaluationTime: new Date().toISOString(),
+        referencePrice: 245.0,
+        evaluationPrice: 258.7,
+        return: 13.7,
+        returnPercent: 5.59,
+        expectedMovement: 3.9,
+        expectedMovementPercent: 1.6,
+        unusualness: 4.15,
+        attentionLevel: 'HIGH_ATTENTION',
+        confidence: 'HIGH',
+        explanation: 'Quick-commerce Blinkit unit turning contribution positive with rapid dark store network expansion in Tier 1 cities.',
+        whySurfaced: 'Price jumped 5.59% (4.15× expected interval volatility)',
+        hasMeaningfulMovement: true,
+        volumeMultiplier: 3.4,
+        catalyst: {
+          category: 'STRATEGIC_EXPANSION',
+          headline: 'Blinkit store count surges past 1,000 mark as order frequency accelerates 24% YoY.',
+          source: 'Tech & Internet Desk',
+          sentiment: 'POSITIVE',
+          summary: 'Blinkit store count surges past 1,000 mark as order frequency accelerates 24% YoY.',
+          url: 'https://groww.in',
+        },
+        sectorContext: {
+          sectorName: 'New-Age Tech / Consumer',
+          benchmarkIndex: 'Nifty India Digital',
+          sectorChangePercent: 0.8,
+          idiosyncraticDivergence: 4.79,
+          isSectorWide: false,
+          relativeNarrative: 'Company-specific rally: ZOMATO jumped +5.59% vs Nifty Digital (+0.80%), indicating pure fundamental re-rating.',
+        },
+        provenance: {
+          source: 'NSE Realtime Feed',
+          observedTimestamp: new Date().toISOString(),
+          receivedTimestamp: new Date().toISOString(),
+          isFresh: true,
+        },
+        watchReason: 'CONSIDERING_BUY',
+      },
+    ]
+
+    return {
+      summary: {
+        awayDurationMinutes: 240,
+        referenceTime: new Date(Date.now() - 4 * 3600 * 1000).toISOString(),
+        evaluationTime: new Date().toISOString(),
+        totalStocks: 6,
+        movedCount: 6,
+        attentionCount: 3,
+        unusualCount: 3,
+      },
+      rankedEvents: demoRankedEvents,
+      normalEvents: pulseData?.normalEvents && pulseData.normalEvents.length > 0 ? pulseData.normalEvents : (pulseData?.rankedEvents || []),
+    }
+  }, [pulseData, demoActiveSession])
+
   return (
     <div className="min-h-screen flex flex-row bg-[#F8FAFC] text-[#111827]">
       {/* Fixed Left Sidebar (260px) */}
@@ -308,7 +461,7 @@ export default function DashboardPage() {
                   Retry Live Pulse
                 </button>
               </div>
-            ) : !pulseData || pulseData.summary.totalStocks === 0 ? (
+            ) : !effectivePulseData || effectivePulseData.summary.totalStocks === 0 ? (
               /* Empty Watchlist State */
               <div className="bg-white p-12 rounded-3xl text-center my-8 border border-[#E8ECF2] shadow-xs">
                 <div className="w-14 h-14 rounded-2xl bg-[#EBFCF7] text-[#00D09C] border border-[#B2F0E1] flex items-center justify-center mx-auto mb-4">
@@ -328,20 +481,36 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div>
+                {/* Active Demonstration Banner */}
+                {demoActiveSession && (
+                  <div className="mb-4 px-4 py-3 rounded-2xl bg-[#E5F4FD] border border-[#B1D0FB] flex items-center justify-between text-xs animate-in fade-in">
+                    <div className="flex items-center gap-2 font-semibold text-[#5367F5]">
+                      <Zap className="w-4 h-4 text-[#5367F5]" />
+                      <span>Demonstrating Active Session Breakouts & News Catalysts</span>
+                    </div>
+                    <button
+                      onClick={() => setDemoActiveSession(false)}
+                      className="text-xs font-bold text-[#5367F5] bg-white px-3 py-1 rounded-lg border border-[#B1D0FB] hover:bg-[#F8FAFC] transition-colors cursor-pointer"
+                    >
+                      Return to Live Weekend View
+                    </button>
+                  </div>
+                )}
+
                 {/* Core Message Hero Card */}
                 <section className="mb-6 bg-white p-6 sm:p-8 rounded-3xl border border-[#E8ECF2] shadow-subtle">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
                       <div className="flex items-center gap-2 text-xs font-semibold text-[#6B7280] uppercase tracking-wider mb-2">
                         <Clock className="w-3.5 h-3.5 text-[#00D09C]" />
-                        You were away for {formatDuration(pulseData.summary.awayDurationMinutes)}
+                        You were away for {formatDuration(effectivePulseData.summary.awayDurationMinutes)}
                       </div>
 
                       <h1 className="text-2xl sm:text-3xl font-black text-[#111827] tracking-tight leading-tight">
-                        <span>{pulseData.summary.movedCount} stocks moved.</span>{' '}
-                        {pulseData.summary.attentionCount > 0 ? (
+                        <span>{effectivePulseData.summary.movedCount} stocks moved.</span>{' '}
+                        {effectivePulseData.summary.attentionCount > 0 ? (
                           <span className="text-[#D97706]">
-                            {pulseData.summary.attentionCount} deserve your attention.
+                            {effectivePulseData.summary.attentionCount} deserve your attention.
                           </span>
                         ) : (
                           <span className="text-[#00D09C]">
@@ -351,7 +520,7 @@ export default function DashboardPage() {
                       </h1>
 
                       <p className="mt-2 text-xs text-[#9CA3AF]">
-                        Evaluated since {new Date(pulseData.summary.referenceTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ({new Date(pulseData.summary.referenceTime).toLocaleDateString()})
+                        Evaluated since {new Date(effectivePulseData.summary.referenceTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ({new Date(effectivePulseData.summary.referenceTime).toLocaleDateString()})
                       </p>
 
                       {/* Differentiator Action Badges */}
@@ -373,7 +542,7 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    {pulseData.summary.attentionCount > 0 ? (
+                    {effectivePulseData.summary.attentionCount > 0 ? (
                       <button
                         onClick={handleMarkAllSeen}
                         disabled={markingAllSeen}
@@ -396,19 +565,19 @@ export default function DashboardPage() {
                 </section>
 
                 {/* Ranked Attention Events List */}
-                {pulseData.rankedEvents.length > 0 ? (
+                {effectivePulseData.rankedEvents.length > 0 ? (
                   <div className="space-y-4 mb-8">
                     <div className="flex items-center justify-between px-1">
                       <h2 className="text-xs font-bold text-[#6B7280] uppercase tracking-wider flex items-center gap-1.5">
                         <Activity className="w-3.5 h-3.5 text-[#00D09C]" />
-                        Attention-Worthy Movements ({pulseData.rankedEvents.length})
+                        Attention-Worthy Movements ({effectivePulseData.rankedEvents.length})
                       </h2>
                       <span className="text-xs text-[#9CA3AF]">
                         Ranked by statistical unusualness
                       </span>
                     </div>
 
-                    {pulseData.rankedEvents.map((event) => {
+                    {effectivePulseData.rankedEvents.map((event) => {
                       const isPositive = event.return >= 0
                       const isExpanded = !!expandedProvenance[event.eventId]
                       const isMarkingThis = markingSeenId === event.symbol
@@ -443,8 +612,8 @@ export default function DashboardPage() {
                                       {event.watchReason === 'PRICE_TARGET'
                                         ? `🎯 Target: ₹${event.targetPrice || '—'}`
                                         : event.watchReason === 'OWN_IT'
-                                        ? '💼 Own It'
-                                        : '🛒 Considering Buy'}
+                                          ? '💼 Own It'
+                                          : '🛒 Considering Buy'}
                                     </span>
                                   )}
                                 </div>
@@ -604,13 +773,24 @@ export default function DashboardPage() {
                       You can relax. Nothing unusual happened.
                     </h2>
                     <p className="text-sm text-[#4B5563] max-w-md mx-auto leading-relaxed">
-                      All {pulseData.summary.totalStocks} stocks in your watchlist traded within standard historical volatility ranges during your {formatDuration(pulseData.summary.awayDurationMinutes)} absence.
+                      All {effectivePulseData.summary.totalStocks} stocks in your watchlist traded within standard historical volatility ranges during your {formatDuration(effectivePulseData.summary.awayDurationMinutes)} absence.
                     </p>
+
+                    {/* Demonstration Button for Weekend Walkthroughs */}
+                    <div className="mt-5 flex items-center justify-center gap-3">
+                      <button
+                        onClick={() => setDemoActiveSession(true)}
+                        className="btn-brand inline-flex items-center gap-2 px-5 py-2.5 text-xs font-bold shadow-sm cursor-pointer"
+                      >
+                        <Zap className="w-4 h-4" />
+                        Demonstrate Active Breakouts & News Catalysts
+                      </button>
+                    </div>
                   </div>
                 )}
 
                 {/* Normal Movements Collapsible Drawer */}
-                {pulseData.normalEvents.length > 0 && (
+                {effectivePulseData.normalEvents.length > 0 && (
                   <section className="bg-white rounded-3xl border border-[#E8ECF2] p-5 sm:p-6 mb-8 shadow-xs">
                     <button
                       onClick={() => setShowNormalMovements(!showNormalMovements)}
@@ -618,7 +798,7 @@ export default function DashboardPage() {
                     >
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-[#111827] uppercase tracking-wider">
-                          Normal Movements ({pulseData.normalEvents.length})
+                          Normal Movements ({effectivePulseData.normalEvents.length})
                         </span>
                         <span className="text-xs text-[#9CA3AF]">
                           Within expected volatility
@@ -632,7 +812,7 @@ export default function DashboardPage() {
 
                     {showNormalMovements && (
                       <div className="mt-4 pt-4 border-t border-[#E8ECF2] divide-y divide-[#F0F1F2]">
-                        {pulseData.normalEvents.map((event) => {
+                        {effectivePulseData.normalEvents.map((event) => {
                           const isPositive = event.return >= 0
                           const isMutingThis = mutingSymbolId === event.symbol
                           return (
@@ -719,8 +899,8 @@ export default function DashboardPage() {
         watchlistId={activeWatchlist?.id}
         watchlistName={activeWatchlist?.name}
         symbols={
-          pulseData
-            ? [...pulseData.rankedEvents, ...pulseData.normalEvents].map((e) => e.symbol)
+          effectivePulseData
+            ? [...effectivePulseData.rankedEvents, ...effectivePulseData.normalEvents].map((e) => e.symbol)
             : []
         }
       />
