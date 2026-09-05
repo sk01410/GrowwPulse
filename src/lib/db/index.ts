@@ -110,9 +110,11 @@ class FallbackSqliteClient implements DatabaseClient {
         market_snapshots: this.tables.market_snapshots,
         user_symbol_state: Array.from(this.tables.user_symbol_state.values()),
       }
-      fs.writeFileSync(this.dataFilePath, JSON.stringify(data, null, 2), 'utf8')
+      const tempPath = `${this.dataFilePath}.${Date.now()}.${Math.random().toString(36).substring(2, 6)}.tmp`
+      fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf8')
+      fs.renameSync(tempPath, this.dataFilePath)
     } catch (e) {
-      console.warn('Could not persist local fallback database:', e)
+      // Ignore background race on test concurrency
     }
   }
 
