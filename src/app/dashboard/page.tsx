@@ -716,6 +716,13 @@ export default function DashboardPage() {
       <AccuracyScorecardModal
         isOpen={isScorecardOpen}
         onClose={() => setIsScorecardOpen(false)}
+        watchlistId={activeWatchlist?.id}
+        watchlistName={activeWatchlist?.name}
+        symbols={
+          pulseData
+            ? [...pulseData.rankedEvents, ...pulseData.normalEvents].map((e) => e.symbol)
+            : []
+        }
       />
 
       <HeroDemoTour

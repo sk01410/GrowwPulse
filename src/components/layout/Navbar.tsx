@@ -271,6 +271,8 @@ export function Navbar({
       <AccuracyScorecardModal
         isOpen={isScorecardOpen}
         onClose={() => setIsScorecardOpen(false)}
+        watchlistId={selectedWatchlistId}
+        watchlistName={watchlists.find(w => w.id === selectedWatchlistId)?.name}
       />
 
       <HeroDemoTour
