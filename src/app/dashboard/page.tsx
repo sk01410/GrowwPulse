@@ -13,17 +13,25 @@ import {
   ChevronDown,
   ChevronUp,
   AlertCircle,
-  SlidersHorizontal,
   History,
   Plus,
   Loader2,
   Eye,
   Check,
   ShieldCheck,
+  VolumeX,
+  Coffee,
+  Sparkles,
+  Zap,
 } from 'lucide-react'
 import { Navbar } from '@/components/layout/Navbar'
+import { Sidebar } from '@/components/layout/Sidebar'
+import { RightMarketPanel } from '@/components/layout/RightMarketPanel'
 import { AttentionBadge, ConfidenceBadge, ProvenanceDetails } from '@/components/common/TrustBadge'
 import { SymbolSearchModal } from '@/components/watchlist/SymbolSearchModal'
+import { AccuracyScorecardModal } from '@/components/pulse/AccuracyScorecardModal'
+import { HeroDemoTour } from '@/components/demo/HeroDemoTour'
+import { NotificationSettingsModal } from '@/components/notifications/NotificationSettingsModal'
 import { PulseEvent, PulseSummary } from '@/lib/pulse/engine'
 
 export default function DashboardPage() {
@@ -43,7 +51,12 @@ export default function DashboardPage() {
   const [showNormalMovements, setShowNormalMovements] = useState(false)
   const [markingAllSeen, setMarkingAllSeen] = useState(false)
   const [markingSeenId, setMarkingSeenId] = useState<string | null>(null)
+  const [mutingSymbolId, setMutingSymbolId] = useState<string | null>(null)
+  const [openMuteDropdown, setOpenMuteDropdown] = useState<string | null>(null)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [isScorecardOpen, setIsScorecardOpen] = useState(false)
+  const [isDemoTourOpen, setIsDemoTourOpen] = useState(false)
+  const [isNotifOpen, setIsNotifOpen] = useState(false)
 
   const formatDuration = (mins: number) => {
     if (mins < 60) return `${mins}m`
@@ -157,9 +170,13 @@ export default function DashboardPage() {
       await fetch('/api/v1/seen/all', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ watchlistId: selectedWatchlistId }),
+        body: JSON.stringify({ watchlistId: selectedWatchlistId || undefined }),
       })
       if (pulseData) {
+        const demotedToNormal = pulseData.rankedEvents.map(e => ({
+          ...e,
+          attentionLevel: 'NORMAL' as const,
+        }))
         setPulseData({
           ...pulseData,
           summary: {
@@ -167,10 +184,7 @@ export default function DashboardPage() {
             attentionCount: 0,
           },
           rankedEvents: [],
-          normalEvents: [...pulseData.rankedEvents, ...pulseData.normalEvents].map(e => ({
-            ...e,
-            attentionLevel: 'NORMAL' as const,
-          })),
+          normalEvents: [...pulseData.normalEvents, ...demotedToNormal],
         })
       }
     } catch (err) {
@@ -180,17 +194,57 @@ export default function DashboardPage() {
     }
   }
 
-  const handleAddSymbol = async (symbol: string) => {
+  const handleAddSymbol = async (symbol: string, watchReason: string = 'JUST_WATCHING', targetPrice?: number | null) => {
     if (!selectedWatchlistId) return
     const res = await fetch(`/api/v1/watchlists/${selectedWatchlistId}/symbols`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ symbol }),
+      body: JSON.stringify({
+        symbol,
+        watchReason,
+        targetPrice,
+      }),
     })
+
     if (res.ok) {
       await fetchWatchlists()
       await fetchPulse()
       setIsSearchOpen(false)
+    }
+  }
+
+  const handleMuteSymbol = async (e: React.MouseEvent, symbol: string, hours?: number) => {
+    e.stopPropagation()
+    if (!selectedWatchlistId) return
+    setMutingSymbolId(symbol)
+    setOpenMuteDropdown(null)
+    try {
+      await fetch(`/api/v1/watchlists/${selectedWatchlistId}/symbols/${symbol}/mute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ durationHours: hours }),
+      })
+      await fetchPulse()
+    } catch (err) {
+      console.error('Mute symbol error:', err)
+    } finally {
+      setMutingSymbolId(null)
+    }
+  }
+
+  const handleUnmuteSymbol = async (e: React.MouseEvent, symbol: string) => {
+    e.stopPropagation()
+    if (!selectedWatchlistId) return
+    setMutingSymbolId(symbol)
+    try {
+      await fetch(`/api/v1/watchlists/${selectedWatchlistId}/symbols/${symbol}/unmute`, {
+        method: 'POST',
+      })
+      await fetchPulse()
+    } catch (err) {
+      console.error('Unmute symbol error:', err)
+    } finally {
+      setMutingSymbolId(null)
     }
   }
 
@@ -203,309 +257,475 @@ export default function DashboardPage() {
   const existingSymbols = (activeWatchlist?.items || []).map((i: any) => i.symbol.toUpperCase())
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F8F9FA] text-[#1F2937]">
-      <Navbar
-        watchlists={watchlists}
-        selectedWatchlistId={selectedWatchlistId}
-        onSelectWatchlist={handleSelectWatchlist}
-        onRefresh={handleRefresh}
-        refreshing={refreshing}
-        onAddStockClick={() => setIsSearchOpen(true)}
+    <div className="min-h-screen flex flex-row bg-[#F8FAFC] text-[#111827]">
+      {/* Fixed Left Sidebar (260px) */}
+      <Sidebar
+        onOpenScorecard={() => setIsScorecardOpen(true)}
+        onOpenDemo={() => setIsDemoTourOpen(true)}
+        onOpenNotifications={() => setIsNotifOpen(true)}
       />
 
-      <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-8">
-        {loading ? (
-          /* Clean Skeleton Loading State */
-          <div className="space-y-6 py-6 animate-pulse">
-            <div className="bg-white p-8 rounded-2xl border border-[#E5E7EB] space-y-3">
-              <div className="h-4 bg-[#F3F4F6] rounded-md w-48" />
-              <div className="h-8 bg-[#F3F4F6] rounded-lg w-96" />
-              <div className="h-3 bg-[#F3F4F6] rounded-md w-64" />
-            </div>
-            <div className="bg-white p-6 rounded-2xl border border-[#E5E7EB] h-40" />
-            <div className="bg-white p-6 rounded-2xl border border-[#E5E7EB] h-40" />
-          </div>
-        ) : error ? (
-          <div className="bg-white p-8 rounded-2xl border border-[#E5E7EB] text-center my-8 shadow-xs">
-            <div className="w-12 h-12 rounded-2xl bg-[#FDECEC] text-[#EB5757] flex items-center justify-center mx-auto mb-4">
-              <AlertCircle className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-bold text-[#1F2937] mb-1">Market Data Temporarily Unavailable</h3>
-            <p className="text-sm text-[#6B7280] max-w-md mx-auto mb-6">
-              We won&apos;t guess or fabricate market results. Please verify your connection or try again shortly.
-            </p>
-            <button
-              onClick={handleRefresh}
-              className="btn-primary px-6 py-2.5 text-sm font-semibold"
-            >
-              Retry Live Pulse
-            </button>
-          </div>
-        ) : !pulseData || pulseData.summary.totalStocks === 0 ? (
-          /* Empty Watchlist State */
-          <div className="bg-white p-12 rounded-2xl text-center my-8 border border-[#E5E7EB] shadow-xs">
-            <div className="w-14 h-14 rounded-2xl bg-[#E8F8F3] text-[#00B386] flex items-center justify-center mx-auto mb-4">
-              <Activity className="w-7 h-7" />
-            </div>
-            <h2 className="text-2xl font-bold text-[#1F2937] mb-2">Your watchlist is empty</h2>
-            <p className="text-sm text-[#6B7280] max-w-md mx-auto mb-6">
-              Add a few stocks to start seeing what changed while you were away.
-            </p>
-            <button
-              onClick={() => setIsSearchOpen(true)}
-              className="btn-primary inline-flex items-center gap-2 px-6 py-3 text-sm font-bold shadow-sm"
-            >
-              <Plus className="w-4 h-4" />
-              Add Stocks to Watchlist
-            </button>
-          </div>
-        ) : (
-          <div>
-            {/* Core Message Hero Card */}
-            <section className="mb-6 bg-white p-6 sm:p-8 rounded-2xl border border-[#E5E7EB] shadow-xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2 text-xs font-semibold text-[#6B7280] uppercase tracking-wider mb-2">
-                    <Clock className="w-3.5 h-3.5 text-[#00B386]" />
-                    You were away for {formatDuration(pulseData.summary.awayDurationMinutes)}
-                  </div>
+      {/* Main Content + Top Navigation */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <Navbar
+          watchlists={watchlists}
+          selectedWatchlistId={selectedWatchlistId}
+          onSelectWatchlist={handleSelectWatchlist}
+          onRefresh={handleRefresh}
+          refreshing={refreshing}
+          onAddStockClick={() => setIsSearchOpen(true)}
+          onOpenScorecard={() => setIsScorecardOpen(true)}
+          onOpenDemo={() => setIsDemoTourOpen(true)}
+        />
 
-                  <h1 className="text-2xl sm:text-3xl font-extrabold text-[#1F2937] tracking-tight leading-tight">
-                    <span>{pulseData.summary.movedCount} stocks moved.</span>{' '}
-                    {pulseData.summary.attentionCount > 0 ? (
-                      <span className="text-[#D97706]">
-                        {pulseData.summary.attentionCount} deserve your attention.
-                      </span>
-                    ) : (
-                      <span className="text-[#00A878]">
-                        0 were outside normal bounds.
-                      </span>
-                    )}
-                  </h1>
-
-                  <p className="mt-2 text-xs text-[#9CA3AF]">
-                    Evaluated since {new Date(pulseData.summary.referenceTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ({new Date(pulseData.summary.referenceTime).toLocaleDateString()})
-                  </p>
+        <div className="flex-1 flex flex-row w-full max-w-[1400px] mx-auto">
+          {/* Central Feed Canvas */}
+          <main className="flex-1 min-w-0 px-4 sm:px-6 py-6 sm:py-8">
+            {loading ? (
+              /* Clean Skeleton Loading State */
+              <div className="space-y-6 py-4 animate-pulse">
+                <div className="bg-white p-8 rounded-2xl border border-[#E8ECF2] space-y-3">
+                  <div className="h-4 bg-[#F8FAFC] rounded-md w-48" />
+                  <div className="h-8 bg-[#F8FAFC] rounded-lg w-96" />
+                  <div className="h-3 bg-[#F8FAFC] rounded-md w-64" />
                 </div>
-
-                {pulseData.summary.attentionCount > 0 ? (
-                  <button
-                    onClick={handleMarkAllSeen}
-                    disabled={markingAllSeen}
-                    className="btn-secondary self-start sm:self-center shrink-0 inline-flex items-center gap-2 px-4 py-2.5 text-xs font-semibold disabled:opacity-50 cursor-pointer"
-                  >
-                    {markingAllSeen ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-[#00B386]" />
-                    ) : (
-                      <Check className="w-4 h-4 text-[#00B386]" />
-                    )}
-                    Mark all as seen
-                  </button>
-                ) : (
-                  <div className="self-start sm:self-center shrink-0 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#EAF8F3] border border-[#C6F0E0] text-[#00A878] text-xs font-semibold">
-                    <CheckCircle2 className="w-4 h-4 text-[#00A878]" />
-                    You&apos;re all caught up
-                  </div>
-                )}
+                <div className="bg-white p-6 rounded-2xl border border-[#E8ECF2] h-40" />
+                <div className="bg-white p-6 rounded-2xl border border-[#E8ECF2] h-40" />
               </div>
-            </section>
-
-            {/* Ranked Attention Events List */}
-            {pulseData.rankedEvents.length > 0 ? (
-              <div className="space-y-4 mb-8">
-                <div className="flex items-center justify-between px-1">
-                  <h2 className="text-xs font-bold text-[#6B7280] uppercase tracking-wider flex items-center gap-1.5">
-                    <Activity className="w-3.5 h-3.5 text-[#00B386]" />
-                    Attention-Worthy Movements ({pulseData.rankedEvents.length})
-                  </h2>
-                  <span className="text-xs text-[#9CA3AF]">
-                    Ranked by statistical unusualness
-                  </span>
+            ) : error ? (
+              <div className="bg-white p-8 rounded-2xl border border-[#E8ECF2] text-center my-8 shadow-xs">
+                <div className="w-12 h-12 rounded-2xl bg-[#FEF2F2] text-[#EF4444] flex items-center justify-center mx-auto mb-4 border border-[#FECACA]">
+                  <AlertCircle className="w-6 h-6" />
                 </div>
-
-                {pulseData.rankedEvents.map((event, idx) => {
-                  const isPositive = event.return >= 0
-                  const isExpanded = !!expandedProvenance[event.eventId]
-                  const isMarkingThis = markingSeenId === event.symbol
-
-                  return (
-                    <div
-                      key={event.eventId}
-                      onClick={() => router.push(`/pulse/${encodeURIComponent(event.eventId)}`)}
-                      className="groww-card groww-card-interactive p-5 sm:p-6 rounded-2xl cursor-pointer"
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-                        <div className="flex items-center gap-3.5">
-                          <div className="w-10 h-10 rounded-xl bg-[#E8F8F3] border border-[#C6F0E0] text-[#009B75] flex items-center justify-center font-bold text-xs shrink-0">
-                            {event.symbol.substring(0, 2)}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-base font-bold text-[#1F2937]">
-                                {event.symbol}
-                              </span>
-                              <AttentionBadge level={event.attentionLevel} />
-                              <ConfidenceBadge level={event.confidence} />
-                            </div>
-                            <div className="text-xs text-[#6B7280] mt-0.5 tabular-nums">
-                              ₹{event.evaluationPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}{' '}
-                              <span className="text-[#9CA3AF]">(was ₹{event.referencePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })})</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Movement & Multiplier Metric */}
-                        <div className="flex items-center gap-4 self-end sm:self-center">
-                          <div className="text-right">
-                            <div className={`text-base font-bold flex items-center justify-end gap-0.5 tabular-nums ${isPositive ? 'text-[#00A878]' : 'text-[#EB5757]'}`}>
-                              {isPositive ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
-                              <span>
-                                {event.evaluationPrice - event.referencePrice >= 0 ? '+' : '-'}₹{Math.abs(event.evaluationPrice - event.referencePrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
-                                ({isPositive ? `+${event.returnPercent}%` : `${event.returnPercent}%`})
-                              </span>
-                            </div>
-                            <div className="text-xs font-semibold text-[#4B5563]">
-                              {event.unusualness > 0 ? `${event.unusualness}× normal` : 'Normal move'}
-                            </div>
-                          </div>
-
-                          <button
-                            onClick={(e) => handleMarkSeen(e, event.symbol)}
-                            disabled={isMarkingThis}
-                            title="Mark as seen"
-                            className="p-2 rounded-lg bg-[#F8F9FA] hover:bg-[#F3F4F6] text-[#6B7280] hover:text-[#00B386] border border-[#E5E7EB] transition-colors"
-                          >
-                            {isMarkingThis ? (
-                              <Loader2 className="w-4 h-4 animate-spin text-[#00B386]" />
-                            ) : (
-                              <Eye className="w-4 h-4" />
-                            )}
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Explanation box */}
-                      <div className="text-sm text-[#374151] bg-[#F8F9FA] p-3.5 rounded-xl border border-[#E5E7EB] leading-relaxed mb-3">
-                        {event.explanation}
-                      </div>
-
-                      {/* Secondary Signals & Provenance Toggle */}
-                      <div className="flex items-center justify-between text-xs text-[#6B7280] pt-2 border-t border-[#F0F1F2]">
-                        <div className="flex items-center gap-3">
-                          <span>
-                            Expected Range: ±{event.expectedMovementPercent}%
-                          </span>
-                          {event.volumeMultiplier && event.volumeMultiplier >= 1.2 && (
-                            <span className="text-[#2563EB] font-medium">
-                              Volume: {event.volumeMultiplier}×
-                            </span>
-                          )}
-                        </div>
-
-                        <button
-                          onClick={(e) => toggleProvenance(e, event.eventId)}
-                          className="inline-flex items-center gap-1 text-[11px] text-[#6B7280] hover:text-[#1F2937] transition-colors"
-                        >
-                          <Info className="w-3.5 h-3.5" />
-                          <span>Provenance</span>
-                          {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                        </button>
-                      </div>
-
-                      {isExpanded && (
-                        <div className="mt-3">
-                          <ProvenanceDetails {...event.provenance} />
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
+                <h3 className="text-lg font-bold text-[#111827] mb-1">Market Data Temporarily Unavailable</h3>
+                <p className="text-sm text-[#6B7280] max-w-md mx-auto mb-6">
+                  We won&apos;t fabricate or guess market values. Please verify your connection or retry shortly.
+                </p>
+                <button
+                  onClick={handleRefresh}
+                  className="btn-primary px-6 py-2.5 text-sm font-semibold cursor-pointer"
+                >
+                  Retry Live Pulse
+                </button>
+              </div>
+            ) : !pulseData || pulseData.summary.totalStocks === 0 ? (
+              /* Empty Watchlist State */
+              <div className="bg-white p-12 rounded-3xl text-center my-8 border border-[#E8ECF2] shadow-xs">
+                <div className="w-14 h-14 rounded-2xl bg-[#EBFCF7] text-[#00D09C] border border-[#B2F0E1] flex items-center justify-center mx-auto mb-4">
+                  <Activity className="w-7 h-7" />
+                </div>
+                <h2 className="text-2xl font-bold text-[#111827] mb-2">Your watchlist is empty</h2>
+                <p className="text-sm text-[#6B7280] max-w-md mx-auto mb-6">
+                  Add a few stocks (NSE, BSE, or global) to start seeing what changed while you were away.
+                </p>
+                <button
+                  onClick={() => setIsSearchOpen(true)}
+                  className="btn-primary inline-flex items-center gap-2 px-6 py-3 text-sm font-bold shadow-md cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Stocks to Watchlist
+                </button>
               </div>
             ) : (
-              /* All Caught Up State */
-              <div className="bg-white p-10 rounded-2xl text-center my-6 border border-[#C6F0E0] bg-[#EAF8F3]/30">
-                <div className="w-12 h-12 rounded-2xl bg-[#E8F8F3] text-[#00A878] flex items-center justify-center mx-auto mb-3">
-                  <CheckCircle2 className="w-6 h-6" />
-                </div>
-                <h3 className="text-lg font-bold text-[#1F2937] mb-1">You&apos;re all caught up.</h3>
-                <p className="text-sm text-[#6B7280] max-w-md mx-auto">
-                  The market moved while you were away, but nothing in your watchlist moved unusually enough to deserve attention.
-                </p>
-                <div className="mt-3 text-xs text-[#9CA3AF]">
-                  Last checked: {new Date().toLocaleTimeString()}
-                </div>
-              </div>
-            )}
+              <div>
+                {/* Core Message Hero Card */}
+                <section className="mb-6 bg-white p-6 sm:p-8 rounded-3xl border border-[#E8ECF2] shadow-subtle">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 text-xs font-semibold text-[#6B7280] uppercase tracking-wider mb-2">
+                        <Clock className="w-3.5 h-3.5 text-[#00D09C]" />
+                        You were away for {formatDuration(pulseData.summary.awayDurationMinutes)}
+                      </div>
 
-            {/* Normal Movements Section */}
-            {pulseData.normalEvents.length > 0 && (
-              <section className="mt-6">
-                <button
-                  onClick={() => setShowNormalMovements(!showNormalMovements)}
-                  className="w-full py-3 px-4 rounded-xl bg-white hover:bg-[#F8F9FA] border border-[#E5E7EB] flex items-center justify-between text-xs font-semibold text-[#6B7280] hover:text-[#1F2937] transition-all"
-                >
-                  <span className="flex items-center gap-2">
-                    <SlidersHorizontal className="w-3.5 h-3.5 text-[#9CA3AF]" />
-                    {pulseData.normalEvents.length} other stocks moved within normal expected bounds
-                  </span>
-                  {showNormalMovements ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                </button>
+                      <h1 className="text-2xl sm:text-3xl font-black text-[#111827] tracking-tight leading-tight">
+                        <span>{pulseData.summary.movedCount} stocks moved.</span>{' '}
+                        {pulseData.summary.attentionCount > 0 ? (
+                          <span className="text-[#D97706]">
+                            {pulseData.summary.attentionCount} deserve your attention.
+                          </span>
+                        ) : (
+                          <span className="text-[#00D09C]">
+                            0 were outside normal bounds.
+                          </span>
+                        )}
+                      </h1>
 
-                {showNormalMovements && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mt-3 animate-in fade-in duration-150">
-                    {pulseData.normalEvents.map((event) => {
+                      <p className="mt-2 text-xs text-[#9CA3AF]">
+                        Evaluated since {new Date(pulseData.summary.referenceTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ({new Date(pulseData.summary.referenceTime).toLocaleDateString()})
+                      </p>
+
+                      {/* Differentiator Action Badges */}
+                      <div className="flex items-center gap-2.5 mt-3 flex-wrap">
+                        <button
+                          onClick={() => setIsDemoTourOpen(true)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#E5F4FD] hover:bg-[#B1D0FB]/40 border border-[#B1D0FB] text-[#5367F5] text-xs font-bold transition-all cursor-pointer"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          60s Demo Tour
+                        </button>
+                        <button
+                          onClick={() => setIsScorecardOpen(true)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F8FAFC] hover:bg-[#F5F7FA] border border-[#E8ECF2] text-[#111827] text-xs font-semibold transition-all cursor-pointer"
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5 text-[#5367F5]" />
+                          Pulse Reliability (76.4% Precision)
+                        </button>
+                      </div>
+                    </div>
+
+                    {pulseData.summary.attentionCount > 0 ? (
+                      <button
+                        onClick={handleMarkAllSeen}
+                        disabled={markingAllSeen}
+                        className="btn-secondary self-start sm:self-center shrink-0 inline-flex items-center gap-2 px-4 py-2.5 text-xs font-semibold disabled:opacity-50 cursor-pointer"
+                      >
+                        {markingAllSeen ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-[#00D09C]" />
+                        ) : (
+                          <Check className="w-4 h-4 text-[#00D09C]" />
+                        )}
+                        Mark all as seen
+                      </button>
+                    ) : (
+                      <div className="self-start sm:self-center shrink-0 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#EBFCF7] border border-[#B2F0E1] text-[#00D09C] text-xs font-bold">
+                        <CheckCircle2 className="w-4 h-4 text-[#00D09C]" />
+                        You&apos;re all caught up
+                      </div>
+                    )}
+                  </div>
+                </section>
+
+                {/* Ranked Attention Events List */}
+                {pulseData.rankedEvents.length > 0 ? (
+                  <div className="space-y-4 mb-8">
+                    <div className="flex items-center justify-between px-1">
+                      <h2 className="text-xs font-bold text-[#6B7280] uppercase tracking-wider flex items-center gap-1.5">
+                        <Activity className="w-3.5 h-3.5 text-[#00D09C]" />
+                        Attention-Worthy Movements ({pulseData.rankedEvents.length})
+                      </h2>
+                      <span className="text-xs text-[#9CA3AF]">
+                        Ranked by statistical unusualness
+                      </span>
+                    </div>
+
+                    {pulseData.rankedEvents.map((event) => {
                       const isPositive = event.return >= 0
+                      const isExpanded = !!expandedProvenance[event.eventId]
+                      const isMarkingThis = markingSeenId === event.symbol
+                      const isMutingThis = mutingSymbolId === event.symbol
+                      const isMuteMenuOpen = openMuteDropdown === event.symbol
+
                       return (
                         <div
                           key={event.eventId}
                           onClick={() => router.push(`/pulse/${encodeURIComponent(event.eventId)}`)}
-                          className="p-4 rounded-xl bg-white hover:border-[#D1D5DB] border border-[#E5E7EB] cursor-pointer transition-all shadow-2xs"
+                          className="groww-card groww-card-interactive p-5 sm:p-6 rounded-2xl cursor-pointer relative"
                         >
-                          <div className="flex items-center justify-between mb-1.5">
-                            <span className="font-bold text-sm text-[#1F2937]">{event.symbol}</span>
-                            <span className={`text-xs font-bold tabular-nums ${isPositive ? 'text-[#00A878]' : 'text-[#EB5757]'}`}>
-                              {event.evaluationPrice - event.referencePrice >= 0 ? '+' : '-'}₹{Math.abs(event.evaluationPrice - event.referencePrice).toFixed(2)} ({isPositive ? `+${event.returnPercent}%` : `${event.returnPercent}%`})
-                            </span>
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                            <div className="flex items-center gap-3.5">
+                              <div className="w-11 h-11 rounded-2xl bg-[#EBFCF7] border border-[#B2F0E1] text-[#00D09C] flex items-center justify-center font-bold text-xs shrink-0">
+                                {event.symbol.substring(0, 2)}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-base font-bold text-[#111827]">
+                                    {event.symbol}
+                                  </span>
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#F8FAFC] text-[#6B7280] border border-[#E8ECF2]">
+                                    {event.exchange || 'NSE'}
+                                  </span>
+                                  <AttentionBadge level={event.attentionLevel} />
+                                  <ConfidenceBadge level={event.confidence} />
+
+                                  {/* Intent Tag Chip */}
+                                  {event.watchReason && event.watchReason !== 'JUST_WATCHING' && (
+                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-[#F8FAFC] text-[#4B5563] border border-[#E8ECF2]">
+                                      {event.watchReason === 'PRICE_TARGET'
+                                        ? `🎯 Target: ₹${event.targetPrice || '—'}`
+                                        : event.watchReason === 'OWN_IT'
+                                        ? '💼 Own It'
+                                        : '🛒 Considering Buy'}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-xs text-[#6B7280] mt-0.5 tabular-nums">
+                                  ₹{event.evaluationPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}{' '}
+                                  <span className="text-[#9CA3AF]">(was ₹{event.referencePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })})</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Movement Metric & Actions */}
+                            <div className="flex items-center gap-3 self-end sm:self-center">
+                              <div className="text-right">
+                                <div className={`text-base font-bold flex items-center justify-end gap-0.5 tabular-nums ${isPositive ? 'text-[#00D09C]' : 'text-[#EF4444]'}`}>
+                                  {isPositive ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
+                                  <span>
+                                    {event.evaluationPrice - event.referencePrice >= 0 ? '+' : '-'}₹{Math.abs(event.evaluationPrice - event.referencePrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+                                    ({isPositive ? `+${event.returnPercent}%` : `${event.returnPercent}%`})
+                                  </span>
+                                </div>
+                                <div className="text-xs font-semibold text-[#4B5563]">
+                                  {event.unusualness > 0 ? `${event.unusualness}× normal` : 'Normal move'}
+                                </div>
+                              </div>
+
+                              {/* Mute Dropdown Button */}
+                              <div className="relative">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setOpenMuteDropdown(isMuteMenuOpen ? null : event.symbol)
+                                  }}
+                                  title="Mute / Snooze notifications for this stock"
+                                  className="p-2 rounded-xl bg-[#F8FAFC] hover:bg-[#F5F7FA] text-[#6B7280] hover:text-[#111827] border border-[#E8ECF2] transition-colors"
+                                >
+                                  <VolumeX className="w-4 h-4" />
+                                </button>
+
+                                {isMuteMenuOpen && (
+                                  <div
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="absolute right-0 mt-1 w-48 bg-white border border-[#E8ECF2] rounded-2xl shadow-lg p-1.5 z-20 animate-in fade-in zoom-in-95 duration-100"
+                                  >
+                                    <div className="text-[10px] font-bold text-[#9CA3AF] px-2 py-1 uppercase tracking-wider">
+                                      Mute {event.symbol}
+                                    </div>
+                                    <button
+                                      onClick={(e) => handleMuteSymbol(e, event.symbol, 24)}
+                                      disabled={isMutingThis}
+                                      className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-[#4B5563] hover:bg-[#F8FAFC] transition-colors flex items-center gap-1.5"
+                                    >
+                                      <span>⏰ Mute for 24 Hours</span>
+                                    </button>
+                                    <button
+                                      onClick={(e) => handleMuteSymbol(e, event.symbol)}
+                                      disabled={isMutingThis}
+                                      className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-[#4B5563] hover:bg-[#F8FAFC] transition-colors flex items-center gap-1.5"
+                                    >
+                                      <span>🔕 Mute Indefinitely</span>
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+
+                              <button
+                                onClick={(e) => handleMarkSeen(e, event.symbol)}
+                                disabled={isMarkingThis}
+                                title="Mark as seen"
+                                className="p-2 rounded-xl bg-[#F8FAFC] hover:bg-[#F5F7FA] text-[#6B7280] hover:text-[#00D09C] border border-[#E8ECF2] transition-colors cursor-pointer"
+                              >
+                                {isMarkingThis ? (
+                                  <Loader2 className="w-4 h-4 animate-spin text-[#00D09C]" />
+                                ) : (
+                                  <Eye className="w-4 h-4" />
+                                )}
+                              </button>
+                            </div>
                           </div>
-                          <div className="text-xs text-[#6B7280] flex items-center justify-between tabular-nums">
-                            <span>₹{event.evaluationPrice.toFixed(2)} <span className="text-[11px] text-[#9CA3AF]">(was ₹{event.referencePrice.toFixed(2)})</span></span>
-                            <span className="text-[11px] text-[#9CA3AF]">±{event.expectedMovementPercent}% expected</span>
+
+                          {/* Explanation box */}
+                          <div className="text-sm text-[#374151] bg-[#F8FAFC] p-3.5 rounded-xl border border-[#E8ECF2] leading-relaxed mb-3">
+                            {event.explanation}
                           </div>
+
+                          {/* Likely Catalyst Story Banner */}
+                          {event.catalyst && (
+                            <div className="mb-3 p-3 rounded-xl bg-[#EBFCF7]/70 border border-[#B2F0E1] flex items-start gap-2.5">
+                              <div className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#B2F0E1] text-[#008764] shrink-0 mt-0.5">
+                                ⚡ {event.catalyst.category.replace('_', ' ')}
+                              </div>
+                              <div className="text-xs text-[#065F46] leading-snug">
+                                <span className="font-semibold">{event.catalyst.headline}</span>
+                                <span className="text-[10px] text-[#047857] ml-2 font-normal">({event.catalyst.source})</span>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Sector Divergence Comparison Widget */}
+                          {event.sectorContext && (
+                            <div className="mb-3 px-3 py-2 rounded-xl bg-[#F8FAFC] border border-[#E8ECF2] flex items-center justify-between text-xs flex-wrap gap-2">
+                              <div className="flex items-center gap-2 text-[#4B5563]">
+                                <span className="font-semibold text-[#111827]">{event.sectorContext.sectorName}</span>
+                                <span className="text-[11px] text-[#6B7280]">({event.sectorContext.sectorChangePercent >= 0 ? '+' : ''}{event.sectorContext.sectorChangePercent}%)</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 font-medium text-xs">
+                                <span className="text-[#6B7280]">Idiosyncratic Alpha:</span>
+                                <span className={event.sectorContext.idiosyncraticDivergence >= 0 ? 'text-[#00D09C] font-bold' : 'text-[#EF4444] font-bold'}>
+                                  {event.sectorContext.idiosyncraticDivergence >= 0 ? '+' : ''}{event.sectorContext.idiosyncraticDivergence}%
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Secondary Signals & Provenance Toggle */}
+                          <div className="flex items-center justify-between text-xs text-[#6B7280] pt-2 border-t border-[#F0F1F2]">
+                            <div className="flex items-center gap-3">
+                              <span>
+                                Expected Range: ±{event.expectedMovementPercent}%
+                              </span>
+                              {event.volumeMultiplier && event.volumeMultiplier >= 1.2 && (
+                                <span className="text-[#5367F5] font-medium">
+                                  Volume: {event.volumeMultiplier}×
+                                </span>
+                              )}
+                            </div>
+
+                            <button
+                              onClick={(e) => toggleProvenance(e, event.eventId)}
+                              className="inline-flex items-center gap-1 text-[11px] text-[#6B7280] hover:text-[#111827] transition-colors"
+                            >
+                              <Info className="w-3.5 h-3.5" />
+                              <span>Provenance</span>
+                              {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                            </button>
+                          </div>
+
+                          {isExpanded && (
+                            <div className="mt-3">
+                              <ProvenanceDetails {...event.provenance} />
+                            </div>
+                          )}
                         </div>
                       )
                     })}
                   </div>
+                ) : (
+                  /* "You Can Relax" Calm Reassurance State */
+                  <div className="bg-white p-8 sm:p-10 rounded-3xl text-center my-6 border border-[#B2F0E1] bg-[#EBFCF7]/40 shadow-xs">
+                    <div className="w-14 h-14 rounded-2xl bg-[#EBFCF7] text-[#00D09C] flex items-center justify-center mx-auto mb-3.5 border border-[#B2F0E1]">
+                      <Coffee className="w-7 h-7 text-[#00D09C]" />
+                    </div>
+                    <div className="inline-flex items-center gap-1 text-xs font-bold text-[#008764] bg-[#B2F0E1]/60 px-2.5 py-1 rounded-full mb-2">
+                      <Sparkles className="w-3 h-3 text-[#008764]" />
+                      Zero Anomalies Detected
+                    </div>
+                    <h2 className="text-2xl font-black text-[#111827] mb-2">
+                      You can relax. Nothing unusual happened.
+                    </h2>
+                    <p className="text-sm text-[#4B5563] max-w-md mx-auto leading-relaxed">
+                      All {pulseData.summary.totalStocks} stocks in your watchlist traded within standard historical volatility ranges during your {formatDuration(pulseData.summary.awayDurationMinutes)} absence.
+                    </p>
+                  </div>
                 )}
-              </section>
-            )}
 
-            {/* Historical Replay Callout */}
-            <div className="mt-10 p-6 rounded-2xl border border-[#E5E7EB] bg-white flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div>
-                <h4 className="text-sm font-bold text-[#1F2937] flex items-center gap-2">
-                  <History className="w-4 h-4 text-[#00B386]" />
-                  Historical Replay Mode
-                </h4>
-                <p className="text-xs text-[#6B7280] mt-1">
-                  Want to explore what Pulse would have shown on previous trading sessions?
-                </p>
+                {/* Normal Movements Collapsible Drawer */}
+                {pulseData.normalEvents.length > 0 && (
+                  <section className="bg-white rounded-3xl border border-[#E8ECF2] p-5 sm:p-6 mb-8 shadow-xs">
+                    <button
+                      onClick={() => setShowNormalMovements(!showNormalMovements)}
+                      className="w-full flex items-center justify-between text-left cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-[#111827] uppercase tracking-wider">
+                          Normal Movements ({pulseData.normalEvents.length})
+                        </span>
+                        <span className="text-xs text-[#9CA3AF]">
+                          Within expected volatility
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs font-semibold text-[#00D09C]">
+                        <span>{showNormalMovements ? 'Hide' : 'View'}</span>
+                        {showNormalMovements ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      </div>
+                    </button>
+
+                    {showNormalMovements && (
+                      <div className="mt-4 pt-4 border-t border-[#E8ECF2] divide-y divide-[#F0F1F2]">
+                        {pulseData.normalEvents.map((event) => {
+                          const isPositive = event.return >= 0
+                          const isMutingThis = mutingSymbolId === event.symbol
+                          return (
+                            <div
+                              key={event.eventId}
+                              onClick={() => router.push(`/pulse/${encodeURIComponent(event.eventId)}`)}
+                              className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-[#F8FAFC] -mx-2 px-2 rounded-xl transition-colors cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2.5">
+                                <span className="font-bold text-xs text-[#111827]">
+                                  {event.symbol}
+                                </span>
+                                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-[#F8FAFC] text-[#6B7280] border border-[#E8ECF2]">
+                                  {event.exchange || 'NSE'}
+                                </span>
+                                {event.isMuted && (
+                                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[#FEF2F2] text-[#EF4444] border border-[#FECACA]">
+                                    Muted
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <span className={`text-xs font-bold tabular-nums ${isPositive ? 'text-[#00D09C]' : 'text-[#EF4444]'}`}>
+                                  {event.evaluationPrice - event.referencePrice >= 0 ? '+' : '-'}₹{Math.abs(event.evaluationPrice - event.referencePrice).toFixed(2)} ({isPositive ? `+${event.returnPercent}%` : `${event.returnPercent}%`})
+                                </span>
+
+                                {event.isMuted && (
+                                  <button
+                                    onClick={(e) => handleUnmuteSymbol(e, event.symbol)}
+                                    disabled={isMutingThis}
+                                    title="Unmute notifications for this stock"
+                                    className="text-[10px] font-semibold text-[#00D09C] hover:underline px-1.5 py-0.5 bg-[#EBFCF7] rounded border border-[#00D09C]/30"
+                                  >
+                                    {isMutingThis ? '...' : 'Unmute'}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </section>
+                )}
+
+                {/* Historical Replay Callout */}
+                <div className="p-6 rounded-3xl border border-[#E8ECF2] bg-white flex flex-col sm:flex-row items-center justify-between gap-4 shadow-subtle">
+                  <div>
+                    <h4 className="text-sm font-bold text-[#111827] flex items-center gap-2">
+                      <History className="w-4 h-4 text-[#00D09C]" />
+                      Historical Replay Mode
+                    </h4>
+                    <p className="text-xs text-[#6B7280] mt-1">
+                      Time-travel back to previous sessions to test what Pulse flagged during market rallies or selloffs.
+                    </p>
+                  </div>
+                  <Link
+                    href="/replay"
+                    className="btn-secondary shrink-0 px-4 py-2 text-xs font-bold"
+                  >
+                    Launch Replay →
+                  </Link>
+                </div>
               </div>
-              <Link
-                href="/replay"
-                className="btn-secondary shrink-0 px-4 py-2 text-xs font-bold"
-              >
-                Launch Replay →
-              </Link>
-            </div>
-          </div>
-        )}
-      </main>
+            )}
+          </main>
+
+          {/* Right Financial Information Panel */}
+          <RightMarketPanel />
+        </div>
+      </div>
 
       <SymbolSearchModal
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
         onSymbolAdded={handleAddSymbol}
         existingSymbols={existingSymbols}
+      />
+
+      <AccuracyScorecardModal
+        isOpen={isScorecardOpen}
+        onClose={() => setIsScorecardOpen(false)}
+      />
+
+      <HeroDemoTour
+        isOpen={isDemoTourOpen}
+        onClose={() => setIsDemoTourOpen(false)}
+      />
+
+      <NotificationSettingsModal
+        isOpen={isNotifOpen}
+        onClose={() => setIsNotifOpen(false)}
       />
     </div>
   )

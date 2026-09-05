@@ -15,6 +15,8 @@ import {
   AlertCircle,
 } from 'lucide-react'
 import { Navbar } from '@/components/layout/Navbar'
+import { Sidebar } from '@/components/layout/Sidebar'
+import { RightMarketPanel } from '@/components/layout/RightMarketPanel'
 import { SymbolSearchModal } from '@/components/watchlist/SymbolSearchModal'
 
 export default function WatchlistsPage() {
@@ -75,14 +77,14 @@ export default function WatchlistsPage() {
   }
 
   const handleDeleteWatchlist = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this watchlist?')) return
+    if (watchlists.length <= 1) return
     setDeletingId(id)
     try {
       await fetch(`/api/v1/watchlists/${id}`, { method: 'DELETE' })
-      const remaining = watchlists.filter((w) => w.id !== id)
-      setWatchlists(remaining)
-      if (selectedWlId === id) {
-        setSelectedWlId(remaining[0]?.id || '')
+      const updated = watchlists.filter((w) => w.id !== id)
+      setWatchlists(updated)
+      if (selectedWlId === id && updated.length > 0) {
+        setSelectedWlId(updated[0].id)
       }
     } finally {
       setDeletingId(null)
@@ -102,12 +104,12 @@ export default function WatchlistsPage() {
     }
   }
 
-  const handleAddSymbol = async (symbol: string) => {
+  const handleAddSymbol = async (symbol: string, watchReason?: string, targetPrice?: number) => {
     if (!selectedWlId) return
     const res = await fetch(`/api/v1/watchlists/${selectedWlId}/symbols`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ symbol }),
+      body: JSON.stringify({ symbol, watchReason, targetPrice }),
     })
     if (res.ok) {
       await fetchWatchlists()
@@ -119,176 +121,218 @@ export default function WatchlistsPage() {
   const existingSymbols = (selectedWatchlist?.items || []).map((i: any) => i.symbol.toUpperCase())
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] text-[#1F2937] flex flex-col font-sans">
-      <Navbar watchlists={watchlists} selectedWatchlistId={selectedWlId} onSelectWatchlist={setSelectedWlId} />
+    <div className="min-h-screen flex flex-row bg-[#F8FAFC] text-[#111827]">
+      {/* Fixed Left Sidebar (260px) */}
+      <Sidebar />
 
-      <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-8">
-        <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-[#1F2937] flex items-center gap-2">
-              <List className="w-5 h-5 text-[#00B386]" />
-              Watchlist Management
-            </h1>
-            <p className="text-xs text-[#6B7280] mt-1">
-              Organize the securities you want Pulse to track and analyze during your absence.
-            </p>
-          </div>
+      {/* Main Column */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <Navbar
+          watchlists={watchlists}
+          selectedWatchlistId={selectedWlId}
+          onSelectWatchlist={setSelectedWlId}
+          onAddStockClick={() => setIsSearchOpen(true)}
+        />
 
-          <Link
-            href="/dashboard"
-            className="self-start sm:self-center px-4 py-2 rounded-xl bg-white hover:bg-[#F3F4F6] border border-[#E5E7EB] text-xs font-semibold text-[#00B386] shadow-sm transition-colors"
-          >
-            ← Open Pulse Inbox
-          </Link>
-        </div>
-
-        {loading ? (
-          <div className="py-20 flex justify-center text-[#6B7280]">
-            <Loader2 className="w-6 h-6 animate-spin text-[#00B386]" />
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Left Column: Watchlists List & Create */}
-            <div className="space-y-6">
-              {/* Watchlists Tab */}
-              <div className="groww-card p-5 rounded-2xl">
-                <h3 className="text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-3">
-                  Your Watchlists ({watchlists.length})
-                </h3>
-
-                <div className="space-y-1.5 mb-4">
-                  {watchlists.map((w) => {
-                    const isSelected = w.id === selectedWlId
-                    return (
-                      <div
-                        key={w.id}
-                        onClick={() => setSelectedWlId(w.id)}
-                        className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all ${
-                          isSelected
-                            ? 'bg-[#EAF8F3] border border-[#00B386]/40 text-[#008764]'
-                            : 'hover:bg-[#F8F9FA] text-[#4B5563] border border-transparent'
-                        }`}
-                      >
-                        <div>
-                          <div className="text-sm font-semibold">{w.name}</div>
-                          <div className="text-[11px] text-[#6B7280]">
-                            {w.items?.length || 0} stocks
-                          </div>
-                        </div>
-
-                        {watchlists.length > 1 && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleDeleteWatchlist(w.id)
-                            }}
-                            title="Delete watchlist"
-                            className="p-1 rounded text-[#9CA3AF] hover:text-[#EB5757] transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-
-                {/* Create New Watchlist */}
-                <form onSubmit={handleCreateWatchlist} className="pt-3 border-t border-[#F3F4F6]">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={newWatchlistName}
-                      onChange={(e) => setNewWatchlistName(e.target.value)}
-                      placeholder="New watchlist name..."
-                      className="flex-1 px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#1F2937] placeholder-[#9CA3AF] focus:outline-none focus:border-[#00B386] focus:ring-1 focus:ring-[#00B386]"
-                    />
-                    <button
-                      type="submit"
-                      disabled={creating || !newWatchlistName.trim()}
-                      className="p-2 rounded-xl bg-[#00B386] hover:bg-[#009E77] text-white disabled:opacity-50 transition-colors shadow-sm"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  </div>
-                </form>
+        <div className="flex-1 flex flex-row w-full max-w-[1400px] mx-auto">
+          <main className="flex-1 min-w-0 px-4 sm:px-6 py-6 sm:py-8">
+            <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-black text-[#111827] flex items-center gap-2 tracking-tight">
+                  <List className="w-6 h-6 text-[#00D09C]" />
+                  Watchlist Management
+                </h1>
+                <p className="text-xs text-[#6B7280] mt-1">
+                  Organize the stocks and set intent tags for Pulse to monitor while you are away.
+                </p>
               </div>
+
+              <Link
+                href="/dashboard"
+                className="btn-secondary self-start sm:self-center px-4 py-2 text-xs font-bold"
+              >
+                ← Open Market Inbox
+              </Link>
             </div>
 
-            {/* Right Column: Symbols inside selected watchlist */}
-            <div className="md:col-span-2">
-              {selectedWatchlist ? (
-                <div className="groww-card p-6 rounded-2xl">
-                  <div className="flex items-center justify-between mb-6 pb-4 border-b border-[#F3F4F6]">
-                    <div>
-                      <h2 className="text-lg font-bold text-[#1F2937]">{selectedWatchlist.name}</h2>
-                      <p className="text-xs text-[#6B7280]">
-                        {selectedWatchlist.items?.length || 0} securities monitored by Pulse
-                      </p>
-                    </div>
+            {loading ? (
+              <div className="py-20 flex justify-center text-[#6B7280]">
+                <Loader2 className="w-6 h-6 animate-spin text-[#00D09C]" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Left Column: Watchlists List & Create */}
+                <div className="space-y-6">
+                  {/* Watchlists Tab */}
+                  <div className="bg-white border border-[#E8ECF2] p-5 rounded-3xl shadow-subtle">
+                    <h3 className="text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-3">
+                      Your Watchlists ({watchlists.length})
+                    </h3>
 
-                    <button
-                      onClick={() => setIsSearchOpen(true)}
-                      className="btn-primary text-xs py-2 px-4 flex items-center gap-1.5"
-                    >
-                      <Plus className="w-4 h-4" /> Add Stock
-                    </button>
-                  </div>
-
-                  {selectedWatchlist.items && selectedWatchlist.items.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {selectedWatchlist.items.map((item: any) => {
-                        const isRemoving = removingSymbol === item.symbol
+                    <div className="space-y-1.5 mb-4">
+                      {watchlists.map((w) => {
+                        const isSelected = w.id === selectedWlId
                         return (
                           <div
-                            key={item.id}
-                            className="flex items-center justify-between p-4 rounded-xl bg-[#F8F9FA] border border-[#E5E7EB] hover:border-[#00B386]/40 transition-colors"
+                            key={w.id}
+                            onClick={() => setSelectedWlId(w.id)}
+                            className={`flex items-center justify-between p-3 rounded-2xl cursor-pointer transition-all ${
+                              isSelected
+                                ? 'bg-[#EBFCF7] border border-[#B2F0E1] text-[#008764]'
+                                : 'hover:bg-[#F8FAFC] text-[#4B5563] border border-transparent'
+                            }`}
                           >
-                            <div className="flex items-center gap-3">
-                              <div className="w-9 h-9 rounded-lg bg-[#EAF8F3] border border-[#00B386]/20 flex items-center justify-center font-bold text-xs text-[#008764]">
-                                {item.symbol.substring(0, 2)}
-                              </div>
-                              <div>
-                                <div className="font-bold text-sm text-[#1F2937]">{item.symbol}</div>
-                                <div className="text-[11px] text-[#6B7280]">
-                                  Tracked in Pulse
-                                </div>
+                            <div>
+                              <div className="text-sm font-bold">{w.name}</div>
+                              <div className="text-[11px] text-[#6B7280]">
+                                {w.items?.length || 0} stocks
                               </div>
                             </div>
 
-                            <button
-                              onClick={() => handleRemoveSymbol(item.symbol)}
-                              disabled={isRemoving}
-                              title="Remove stock from watchlist"
-                              className="p-1.5 rounded-lg text-[#9CA3AF] hover:text-[#EB5757] hover:bg-[#FDECEC] transition-colors disabled:opacity-50"
-                            >
-                              {isRemoving ? (
-                                <Loader2 className="w-4 h-4 animate-spin text-[#EB5757]" />
-                              ) : (
-                                <Trash2 className="w-4 h-4" />
-                              )}
-                            </button>
+                            {watchlists.length > 1 && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDeleteWatchlist(w.id)
+                                }}
+                                disabled={deletingId === w.id}
+                                title="Delete watchlist"
+                                className="p-1 rounded-lg text-[#9CA3AF] hover:text-[#EF4444] hover:bg-white transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
                         )
                       })}
                     </div>
-                  ) : (
-                    <div className="py-12 text-center text-[#6B7280]">
-                      <p className="text-sm mb-3">No securities in this watchlist yet.</p>
-                      <button
-                        onClick={() => setIsSearchOpen(true)}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#EAF8F3] hover:bg-[#D5F2E7] text-[#008764] border border-[#00B386]/30 text-xs font-semibold transition-colors"
-                      >
-                        <Plus className="w-3.5 h-3.5" /> Add Stocks
-                      </button>
-                    </div>
-                  )}
+
+                    {/* Create Watchlist Form */}
+                    <form onSubmit={handleCreateWatchlist} className="pt-3 border-t border-[#E8ECF2]">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          placeholder="New watchlist name..."
+                          value={newWatchlistName}
+                          onChange={(e) => setNewWatchlistName(e.target.value)}
+                          className="flex-1 px-3 py-2 text-xs rounded-xl bg-[#F8FAFC] border border-[#E8ECF2] focus:outline-none focus:border-[#00D09C]"
+                        />
+                        <button
+                          type="submit"
+                          disabled={creating || !newWatchlistName.trim()}
+                          className="btn-primary px-3 py-2 text-xs font-bold disabled:opacity-50 cursor-pointer"
+                        >
+                          {creating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
                 </div>
-              ) : null}
-            </div>
-          </div>
-        )}
-      </main>
+
+                {/* Right Column: Securities in Selected Watchlist */}
+                <div className="md:col-span-2">
+                  {selectedWatchlist ? (
+                    <div className="bg-white border border-[#E8ECF2] p-6 rounded-3xl shadow-subtle">
+                      <div className="flex items-center justify-between pb-4 mb-4 border-b border-[#E8ECF2]">
+                        <div>
+                          <h2 className="text-lg font-extrabold text-[#111827]">
+                            {selectedWatchlist.name}
+                          </h2>
+                          <p className="text-xs text-[#6B7280]">
+                            {selectedWatchlist.items?.length || 0} stocks active in this watchlist
+                          </p>
+                        </div>
+
+                        <button
+                          onClick={() => setIsSearchOpen(true)}
+                          className="btn-primary inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold shadow-xs cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4" /> Add Stock
+                        </button>
+                      </div>
+
+                      {/* Items List */}
+                      {selectedWatchlist.items && selectedWatchlist.items.length > 0 ? (
+                        <div className="divide-y divide-[#E8ECF2]/70">
+                          {selectedWatchlist.items.map((item: any) => {
+                            const isRemoving = removingSymbol === item.symbol
+                            return (
+                              <div
+                                key={item.id || item.symbol}
+                                onClick={() => router.push(`/pulse/${encodeURIComponent(item.symbol)}`)}
+                                className="py-3 flex items-center justify-between gap-3 hover:bg-[#F8FAFC] -mx-2 px-3 rounded-2xl transition-all cursor-pointer group border border-transparent hover:border-[#E8ECF2]"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className="w-10 h-10 rounded-2xl bg-[#EBFCF7] border border-[#B2F0E1] text-[#00D09C] group-hover:bg-[#00D09C] group-hover:text-white transition-colors flex items-center justify-center font-bold text-xs">
+                                    {item.symbol.substring(0, 2)}
+                                  </div>
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm font-bold text-[#111827] group-hover:text-[#00D09C] transition-colors">
+                                        {item.symbol}
+                                      </span>
+                                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#F8FAFC] text-[#6B7280] border border-[#E8ECF2]">
+                                        {item.exchange || 'NSE'}
+                                      </span>
+                                      {item.watch_reason && item.watch_reason !== 'JUST_WATCHING' && (
+                                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-[#F8FAFC] text-[#4B5563] border border-[#E8ECF2]">
+                                          {item.watch_reason === 'PRICE_TARGET'
+                                            ? `🎯 ₹${item.target_price}`
+                                            : item.watch_reason === 'OWN_IT'
+                                            ? '💼 Own It'
+                                            : '🛒 Buying'}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="text-[11px] text-[#6B7280] flex items-center gap-1.5">
+                                      <span>Click to inspect pulse & charts</span>
+                                      <span className="text-[#00D09C] group-hover:translate-x-0.5 transition-transform">→</span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleRemoveSymbol(item.symbol)
+                                    }}
+                                    disabled={isRemoving}
+                                    title="Remove stock from watchlist"
+                                    className="p-1.5 rounded-lg text-[#9CA3AF] hover:text-[#EF4444] hover:bg-[#FEF2F2] transition-colors disabled:opacity-50 cursor-pointer"
+                                  >
+                                    {isRemoving ? (
+                                      <Loader2 className="w-4 h-4 animate-spin text-[#EF4444]" />
+                                    ) : (
+                                      <Trash2 className="w-4 h-4" />
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ) : (
+                        <div className="py-12 text-center text-[#6B7280]">
+                          <p className="text-sm mb-3">No securities in this watchlist yet.</p>
+                          <button
+                            onClick={() => setIsSearchOpen(true)}
+                            className="btn-primary inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> Add Stocks
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            )}
+          </main>
+
+          <RightMarketPanel />
+        </div>
+      </div>
 
       <SymbolSearchModal
         isOpen={isSearchOpen}
@@ -299,4 +343,3 @@ export default function WatchlistsPage() {
     </div>
   )
 }
-

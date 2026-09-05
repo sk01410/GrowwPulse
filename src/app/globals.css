@@ -4,125 +4,161 @@
 
 @layer base {
   :root {
-    --color-primary: #00B386;
-    --color-primary-dark: #009B75;
-    --color-primary-light: #E8F8F3;
-    --color-primary-subtle: #F3FBF8;
+    /* Primary Brand Colors */
+    --color-brand-blue: #5367F5;
+    --color-primary-green: #00D09C;
+    --color-logo-green: #08F6B6;
 
-    --color-background: #FFFFFF;
-    --color-surface: #FFFFFF;
-    --color-surface-secondary: #F8F9FA;
-    --color-surface-tertiary: #F3F4F6;
+    /* Backgrounds */
+    --color-bg-main: #FFFFFF;
+    --color-bg-secondary: #F8FAFC;
+    --color-bg-section: #F5F7FA;
 
-    --color-border: #E5E7EB;
-    --color-border-light: #F0F1F2;
-
-    --color-text-primary: #1F2937;
+    /* Neutrals */
+    --color-black: #000000;
+    --color-text-primary: #111827;
     --color-text-secondary: #6B7280;
-    --color-text-tertiary: #9CA3AF;
-    --color-text-disabled: #D1D5DB;
+    --color-text-muted: #9CA3AF;
+    --color-border: #E8ECF2;
 
-    --color-positive: #00A878;
-    --color-positive-bg: #EAF8F3;
+    /* Accent Tints */
+    --color-accent-blue-subtle: #E5F4FD;
+    --color-accent-blue-border: #B1D0FB;
+    --color-accent-green-subtle: #EBFCF7;
+    --color-accent-green-border: #B2F0E1;
 
-    --color-negative: #EB5757;
-    --color-negative-bg: #FDECEC;
+    /* Financial Returns */
+    --color-gain: #00D09C;
+    --color-loss: #EF4444;
 
-    --color-warning: #F59E0B;
-    --color-warning-bg: #FFF7E6;
+    /* Radii */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 24px;
+    --radius-pill: 9999px;
 
-    --color-info: #3B82F6;
-    --color-info-bg: #EFF6FF;
-
-    --radius-sm: 6px;
-    --radius-md: 10px;
-    --radius-lg: 14px;
-    --radius-xl: 18px;
-    --radius-pill: 999px;
-
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
-    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
+    --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.04);
+    --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.04);
+    --shadow-hover: 0 8px 24px rgba(0, 0, 0, 0.06);
   }
 
   body {
-    color: var(--color-text-primary);
-    background-color: #F8F9FA;
+    color: #111827;
+    background-color: #F8FAFC;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 }
 
-/* Custom Clean Scrollbars */
+/* Custom Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #F3F4F6;
+  background: #F8FAFC;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #D1D5DB;
-  border-radius: 3px;
+  background: #E8ECF2;
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #9CA3AF;
+  background: #D1D5DB;
 }
 
-/* Groww Clean Card Style */
+/* Groww Cards */
 .groww-card {
   background: #FFFFFF;
-  border: 1px solid #E5E7EB;
-  border-radius: 14px;
+  border: 1px solid #E8ECF2;
+  border-radius: 16px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
   transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
 }
 
-.groww-card-interactive:hover {
-  border-color: #D1D5DB;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+.groww-card-interactive {
+  cursor: pointer;
 }
 
-/* Groww Button Styles */
+.groww-card-interactive:hover {
+  border-color: #CBD5E1;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05);
+}
+
+/* Groww Buttons */
 .btn-primary {
-  background-color: #00B386;
+  background-color: #00D09C;
   color: #FFFFFF;
   font-weight: 600;
-  border-radius: 8px;
-  transition: background-color 180ms ease, transform 180ms ease;
+  border-radius: 10px;
+  transition: all 180ms ease;
 }
 
 .btn-primary:hover {
-  background-color: #009B75;
+  background-color: #00B386;
+  box-shadow: 0 4px 12px rgba(0, 208, 156, 0.25);
 }
 
 .btn-primary:active {
   transform: scale(0.98);
 }
 
+.btn-brand {
+  background-color: #5367F5;
+  color: #FFFFFF;
+  font-weight: 600;
+  border-radius: 10px;
+  transition: all 180ms ease;
+}
+
+.btn-brand:hover {
+  background-color: #4354DB;
+  box-shadow: 0 4px 12px rgba(83, 103, 245, 0.25);
+}
+
 .btn-secondary {
   background-color: #FFFFFF;
-  color: #1F2937;
-  border: 1px solid #E5E7EB;
+  color: #111827;
+  border: 1px solid #E8ECF2;
   font-weight: 600;
-  border-radius: 8px;
-  transition: background-color 180ms ease, border-color 180ms ease, transform 180ms ease;
+  border-radius: 10px;
+  transition: all 180ms ease;
 }
 
 .btn-secondary:hover {
-  background-color: #F8F9FA;
-  border-color: #D1D5DB;
+  background-color: #F8FAFC;
+  border-color: #CBD5E1;
 }
 
 .btn-secondary:active {
   transform: scale(0.98);
 }
 
-/* Tabular Numbers for Accurate Financial Alignment */
-.tabular-nums {
-  font-variant-numeric: tabular-nums;
+/* Gain/Loss Helpers */
+.text-gain {
+  color: #00D09C;
+}
+
+.bg-gain-subtle {
+  background-color: #EBFCF7;
+}
+
+.border-gain {
+  border-color: #B2F0E1;
+}
+
+.text-loss {
+  color: #EF4444;
+}
+
+.bg-loss-subtle {
+  background-color: #FEF2F2;
+}
+
+.border-loss {
+  border-color: #FECACA;
 }
