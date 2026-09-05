@@ -13,6 +13,9 @@ import {
   Loader2,
   Check,
   AlertCircle,
+  Bell,
+  BellOff,
+  VolumeX,
 } from 'lucide-react'
 import { Navbar } from '@/components/layout/Navbar'
 import { Sidebar } from '@/components/layout/Sidebar'
@@ -29,6 +32,8 @@ export default function WatchlistsPage() {
   const [creating, setCreating] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [removingSymbol, setRemovingSymbol] = useState<string | null>(null)
+  const [mutingSymbolId, setMutingSymbolId] = useState<string | null>(null)
+  const [openMuteDropdown, setOpenMuteDropdown] = useState<string | null>(null)
 
   const fetchWatchlists = async () => {
     try {
@@ -101,6 +106,41 @@ export default function WatchlistsPage() {
       await fetchWatchlists()
     } finally {
       setRemovingSymbol(null)
+    }
+  }
+
+  const handleMuteSymbol = async (e: React.MouseEvent, symbol: string, hours?: number) => {
+    e.stopPropagation()
+    if (!selectedWlId) return
+    setMutingSymbolId(symbol)
+    setOpenMuteDropdown(null)
+    try {
+      await fetch(`/api/v1/watchlists/${selectedWlId}/symbols/${symbol}/mute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ durationHours: hours }),
+      })
+      await fetchWatchlists()
+    } catch (err) {
+      console.error('Mute symbol error:', err)
+    } finally {
+      setMutingSymbolId(null)
+    }
+  }
+
+  const handleUnmuteSymbol = async (e: React.MouseEvent, symbol: string) => {
+    e.stopPropagation()
+    if (!selectedWlId) return
+    setMutingSymbolId(symbol)
+    try {
+      await fetch(`/api/v1/watchlists/${selectedWlId}/symbols/${symbol}/unmute`, {
+        method: 'POST',
+      })
+      await fetchWatchlists()
+    } catch (err) {
+      console.error('Unmute symbol error:', err)
+    } finally {
+      setMutingSymbolId(null)
     }
   }
 
@@ -256,18 +296,22 @@ export default function WatchlistsPage() {
                         <div className="divide-y divide-[#E8ECF2]/70">
                           {selectedWatchlist.items.map((item: any) => {
                             const isRemoving = removingSymbol === item.symbol
+                            const isMuting = mutingSymbolId === item.symbol
+                            const isMuteOpen = openMuteDropdown === item.symbol
+                            const isMuted = item.muted_until && new Date(item.muted_until) > new Date()
+
                             return (
                               <div
                                 key={item.id || item.symbol}
                                 onClick={() => router.push(`/pulse/${encodeURIComponent(item.symbol)}`)}
-                                className="py-3 flex items-center justify-between gap-3 hover:bg-[#F8FAFC] -mx-2 px-3 rounded-2xl transition-all cursor-pointer group border border-transparent hover:border-[#E8ECF2]"
+                                className="py-3 flex items-center justify-between gap-3 hover:bg-[#F8FAFC] -mx-2 px-3 rounded-2xl transition-all cursor-pointer group border border-transparent hover:border-[#E8ECF2] relative"
                               >
                                 <div className="flex items-center gap-3">
                                   <div className="w-10 h-10 rounded-2xl bg-[#EBFCF7] border border-[#B2F0E1] text-[#00D09C] group-hover:bg-[#00D09C] group-hover:text-white transition-colors flex items-center justify-center font-bold text-xs">
                                     {item.symbol.substring(0, 2)}
                                   </div>
                                   <div>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2 flex-wrap">
                                       <span className="text-sm font-bold text-[#111827] group-hover:text-[#00D09C] transition-colors">
                                         {item.symbol}
                                       </span>
@@ -283,15 +327,92 @@ export default function WatchlistsPage() {
                                             : '🛒 Buying'}
                                         </span>
                                       )}
+                                      {isMuted && (
+                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A] flex items-center gap-1">
+                                          <BellOff className="w-3 h-3 text-[#D97706]" />
+                                          Muted
+                                        </span>
+                                      )}
                                     </div>
-                                    <div className="text-[11px] text-[#6B7280] flex items-center gap-1.5">
+                                    <div className="text-[11px] text-[#6B7280] flex items-center gap-1.5 mt-0.5">
                                       <span>Click to inspect pulse & charts</span>
                                       <span className="text-[#00D09C] group-hover:translate-x-0.5 transition-transform">→</span>
                                     </div>
                                   </div>
                                 </div>
 
-                                <div className="flex items-center gap-1">
+                                <div className="flex items-center gap-1 relative">
+                                  {/* Mute Dropdown Button */}
+                                  <div className="relative">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setOpenMuteDropdown(isMuteOpen ? null : item.symbol)
+                                      }}
+                                      disabled={isMuting}
+                                      title={isMuted ? 'Muted — click to manage' : 'Mute anomaly alerts'}
+                                      className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                                        isMuted
+                                          ? 'bg-[#FEF3C7] border-[#FDE68A] text-[#D97706]'
+                                          : 'bg-white border-[#E8ECF2] text-[#6B7280] hover:text-[#5367F5] hover:bg-[#F8FAFC]'
+                                      }`}
+                                    >
+                                      {isMuting ? (
+                                        <Loader2 className="w-4 h-4 animate-spin text-[#5367F5]" />
+                                      ) : isMuted ? (
+                                        <BellOff className="w-4 h-4" />
+                                      ) : (
+                                        <Bell className="w-4 h-4" />
+                                      )}
+                                    </button>
+
+                                    {/* Mute Options Menu */}
+                                    {isMuteOpen && (
+                                      <div
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="absolute right-0 top-full mt-1.5 w-44 bg-white rounded-2xl shadow-xl border border-[#E8ECF2] p-1.5 z-30 animate-in fade-in zoom-in-95 text-left"
+                                      >
+                                        <div className="text-[10px] font-bold text-[#9CA3AF] px-2.5 py-1 uppercase tracking-wider">
+                                          Mute Alerts
+                                        </div>
+                                        {isMuted ? (
+                                          <button
+                                            onClick={(e) => handleUnmuteSymbol(e, item.symbol)}
+                                            className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-[#00D09C] font-semibold hover:bg-[#EBFCF7] rounded-lg transition-colors cursor-pointer"
+                                          >
+                                            <Bell className="w-3.5 h-3.5" />
+                                            Unmute alerts
+                                          </button>
+                                        ) : (
+                                          <>
+                                            <button
+                                              onClick={(e) => handleMuteSymbol(e, item.symbol, 2)}
+                                              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-[#374151] hover:bg-[#F8FAFC] rounded-lg transition-colors cursor-pointer"
+                                            >
+                                              <VolumeX className="w-3.5 h-3.5 text-[#6B7280]" />
+                                              Mute for 2 hours
+                                            </button>
+                                            <button
+                                              onClick={(e) => handleMuteSymbol(e, item.symbol, 24)}
+                                              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-[#374151] hover:bg-[#F8FAFC] rounded-lg transition-colors cursor-pointer"
+                                            >
+                                              <VolumeX className="w-3.5 h-3.5 text-[#6B7280]" />
+                                              Mute for 24 hours
+                                            </button>
+                                            <button
+                                              onClick={(e) => handleMuteSymbol(e, item.symbol, 168)}
+                                              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-[#374151] hover:bg-[#F8FAFC] rounded-lg transition-colors cursor-pointer"
+                                            >
+                                              <VolumeX className="w-3.5 h-3.5 text-[#6B7280]" />
+                                              Mute for 7 days
+                                            </button>
+                                          </>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Delete Button */}
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation()
