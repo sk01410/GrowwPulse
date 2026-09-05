@@ -62,13 +62,17 @@ class FallbackSqliteClient implements DatabaseClient {
     watchlist_items: Map<string, any>
     market_snapshots: any[]
     user_symbol_state: Map<string, any>
+    user_notification_preferences: Map<string, any>
+    user_notification_state: Map<string, any>
+    push_subscriptions: Map<string, any>
   }
   private dataDir: string
   private dataFilePath: string
 
   constructor() {
     this.dataDir = path.resolve(process.cwd(), '.data')
-    this.dataFilePath = path.join(this.dataDir, 'pulse_storage.json')
+    const isTest = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST)
+    this.dataFilePath = path.join(this.dataDir, isTest ? 'pulse_storage_test.json' : 'pulse_storage.json')
     this.tables = {
       users: new Map(),
       symbols: new Map(),
@@ -76,6 +80,9 @@ class FallbackSqliteClient implements DatabaseClient {
       watchlist_items: new Map(),
       market_snapshots: [],
       user_symbol_state: new Map(),
+      user_notification_preferences: new Map(),
+      user_notification_state: new Map(),
+      push_subscriptions: new Map(),
     }
     this.load()
   }
@@ -91,6 +98,9 @@ class FallbackSqliteClient implements DatabaseClient {
         if (parsed.watchlist_items) parsed.watchlist_items.forEach((wi: any) => this.tables.watchlist_items.set(wi.id, wi))
         if (parsed.market_snapshots) this.tables.market_snapshots = parsed.market_snapshots
         if (parsed.user_symbol_state) parsed.user_symbol_state.forEach((uss: any) => this.tables.user_symbol_state.set(uss.id, uss))
+        if (parsed.user_notification_preferences) parsed.user_notification_preferences.forEach((unp: any) => this.tables.user_notification_preferences.set(unp.user_id, unp))
+        if (parsed.user_notification_state) parsed.user_notification_state.forEach((uns: any) => this.tables.user_notification_state.set(uns.user_id, uns))
+        if (parsed.push_subscriptions) parsed.push_subscriptions.forEach((ps: any) => this.tables.push_subscriptions.set(ps.id, ps))
       }
     } catch (e) {
       console.warn('Could not load local fallback database file, using memory storage:', e)
@@ -109,6 +119,9 @@ class FallbackSqliteClient implements DatabaseClient {
         watchlist_items: Array.from(this.tables.watchlist_items.values()),
         market_snapshots: this.tables.market_snapshots,
         user_symbol_state: Array.from(this.tables.user_symbol_state.values()),
+        user_notification_preferences: Array.from(this.tables.user_notification_preferences.values()),
+        user_notification_state: Array.from(this.tables.user_notification_state.values()),
+        push_subscriptions: Array.from(this.tables.push_subscriptions.values()),
       }
       const tempPath = `${this.dataFilePath}.${Date.now()}.${Math.random().toString(36).substring(2, 6)}.tmp`
       fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf8')
@@ -163,6 +176,20 @@ class FallbackSqliteClient implements DatabaseClient {
         users = users.filter(u => u.auth_provider_id === params[0])
       }
       return { rows: users as any, rowCount: users.length }
+    }
+
+    // 4b. UPDATE users
+    if (upper.startsWith('UPDATE USERS')) {
+      if (upper.includes('SET UPDATED_AT = $1 WHERE ID = $2')) {
+        const user = this.tables.users.get(params[1])
+        if (user) {
+          user.updated_at = params[0]
+          this.tables.users.set(user.id, user)
+          this.save()
+          return { rows: [user] as any, rowCount: 1 }
+        }
+      }
+      return { rows: [], rowCount: 0 }
     }
 
     // 5. INSERT INTO symbols / ON CONFLICT
@@ -242,6 +269,9 @@ class FallbackSqliteClient implements DatabaseClient {
         id: params[0],
         watchlist_id: params[1],
         symbol: params[2].toUpperCase(),
+        watch_reason: params[3] || 'JUST_WATCHING',
+        target_price: params[4] !== undefined && params[4] !== null ? Number(params[4]) : null,
+        muted_until: params[5] || null,
         created_at: new Date().toISOString(),
       }
       // Check duplicate
@@ -252,20 +282,58 @@ class FallbackSqliteClient implements DatabaseClient {
         this.tables.watchlist_items.set(item.id, item)
         this.save()
         return { rows: [item] as any, rowCount: 1 }
+      } else {
+        existing.watch_reason = item.watch_reason || existing.watch_reason
+        existing.target_price = item.target_price !== null ? item.target_price : existing.target_price
+        existing.muted_until = item.muted_until !== null ? item.muted_until : existing.muted_until
+        this.tables.watchlist_items.set(existing.id, existing)
+        this.save()
+        return { rows: [existing] as any, rowCount: 1 }
       }
-      return { rows: [existing] as any, rowCount: 1 }
     }
 
     // 11. SELECT FROM watchlist_items
     if (upper.startsWith('SELECT') && upper.includes('FROM WATCHLIST_ITEMS')) {
       let items = Array.from(this.tables.watchlist_items.values())
-      if (upper.includes('WHERE WATCHLIST_ID = $1')) {
+      if (upper.includes('WHERE WATCHLIST_ID = $1 AND SYMBOL = $2')) {
+        items = items.filter(wi => wi.watchlist_id === params[0] && wi.symbol === params[1].toUpperCase())
+      } else if (upper.includes('WHERE WATCHLIST_ID = $1')) {
         items = items.filter(wi => wi.watchlist_id === params[0])
       }
       return { rows: items as any, rowCount: items.length }
     }
 
-    // 12. DELETE FROM watchlist_items
+    // 12. UPDATE watchlist_items (Muting or Intent tagging)
+    if (upper.startsWith('UPDATE WATCHLIST_ITEMS')) {
+      let updatedCount = 0
+      if (upper.includes('SET MUTED_UNTIL = $1 WHERE WATCHLIST_ID = $2 AND SYMBOL = $3')) {
+        const mutedUntil = params[0]
+        const wlId = params[1]
+        const symbol = params[2].toUpperCase()
+        for (const item of this.tables.watchlist_items.values()) {
+          if (item.watchlist_id === wlId && item.symbol === symbol) {
+            item.muted_until = mutedUntil
+            updatedCount++
+          }
+        }
+      } else if (upper.includes('SET WATCH_REASON = $1, TARGET_PRICE = $2 WHERE WATCHLIST_ID = $3 AND SYMBOL = $4')) {
+        const reason = params[0]
+        const targetPrice = params[1] !== undefined && params[1] !== null ? Number(params[1]) : null
+        const wlId = params[2]
+        const symbol = params[3].toUpperCase()
+        for (const item of this.tables.watchlist_items.values()) {
+          if (item.watchlist_id === wlId && item.symbol === symbol) {
+            item.watch_reason = reason
+            item.target_price = targetPrice
+            updatedCount++
+          }
+        }
+      }
+      this.save()
+      return { rows: [], rowCount: updatedCount }
+    }
+
+    // 13. DELETE FROM watchlist_items
     if (upper.startsWith('DELETE FROM WATCHLIST_ITEMS')) {
       if (upper.includes('WHERE WATCHLIST_ID = $1 AND SYMBOL = $2')) {
         let deleted = 0
@@ -280,7 +348,7 @@ class FallbackSqliteClient implements DatabaseClient {
       }
     }
 
-    // 13. INSERT INTO market_snapshots
+    // 14. INSERT INTO market_snapshots
     if (upper.startsWith('INSERT INTO MARKET_SNAPSHOTS')) {
       const snap = {
         id: params[0],
@@ -297,7 +365,7 @@ class FallbackSqliteClient implements DatabaseClient {
       return { rows: [snap] as any, rowCount: 1 }
     }
 
-    // 14. SELECT FROM market_snapshots
+    // 15. SELECT FROM market_snapshots
     if (upper.startsWith('SELECT') && upper.includes('FROM MARKET_SNAPSHOTS')) {
       let snaps = [...this.tables.market_snapshots]
       if (upper.includes('WHERE SYMBOL = $1 AND SOURCE_TIMESTAMP >= $2 AND SOURCE_TIMESTAMP <= $3')) {
@@ -330,7 +398,7 @@ class FallbackSqliteClient implements DatabaseClient {
       return { rows: snaps as any, rowCount: snaps.length }
     }
 
-    // 15. INSERT INTO user_symbol_state / ON CONFLICT
+    // 16. INSERT INTO user_symbol_state / ON CONFLICT
     if (upper.startsWith('INSERT INTO USER_SYMBOL_STATE')) {
       const state = {
         id: params[0],
@@ -365,7 +433,7 @@ class FallbackSqliteClient implements DatabaseClient {
       }
     }
 
-    // 16. SELECT FROM user_symbol_state
+    // 17. SELECT FROM user_symbol_state
     if (upper.startsWith('SELECT') && upper.includes('FROM USER_SYMBOL_STATE')) {
       let states = Array.from(this.tables.user_symbol_state.values())
       if (upper.includes('WHERE USER_ID = $1 AND SYMBOL = $2')) {
@@ -376,7 +444,7 @@ class FallbackSqliteClient implements DatabaseClient {
       return { rows: states as any, rowCount: states.length }
     }
 
-    // 17. UPDATE user_symbol_state
+    // 18. UPDATE user_symbol_state
     if (upper.startsWith('UPDATE USER_SYMBOL_STATE')) {
       let updatedCount = 0
       const nowTs = params[0] // $1 last_seen
@@ -399,6 +467,88 @@ class FallbackSqliteClient implements DatabaseClient {
       }
       this.save()
       return { rows: [], rowCount: updatedCount }
+    }
+
+    // 19. USER_NOTIFICATION_PREFERENCES
+    if (upper.startsWith('INSERT INTO USER_NOTIFICATION_PREFERENCES')) {
+      const pref = {
+        user_id: params[0],
+        email_enabled: params[1] === true || params[1] === 'true',
+        email_frequency: params[2] || 'HIGH_ATTENTION_ONLY',
+        push_enabled: params[3] === true || params[3] === 'true',
+        email: params[4] || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+      this.tables.user_notification_preferences.set(pref.user_id, pref)
+      this.save()
+      return { rows: [pref] as any, rowCount: 1 }
+    }
+
+    if (upper.startsWith('SELECT') && upper.includes('FROM USER_NOTIFICATION_PREFERENCES')) {
+      let prefs = Array.from(this.tables.user_notification_preferences.values())
+      if (upper.includes('WHERE USER_ID = $1')) {
+        prefs = prefs.filter(p => p.user_id === params[0])
+      }
+      return { rows: prefs as any, rowCount: prefs.length }
+    }
+
+    // 20. USER_NOTIFICATION_STATE
+    if (upper.startsWith('INSERT INTO USER_NOTIFICATION_STATE')) {
+      const state = {
+        user_id: params[0],
+        last_pushed_at: params[1] || null,
+        last_emailed_at: params[2] || null,
+        updated_at: new Date().toISOString(),
+      }
+      this.tables.user_notification_state.set(state.user_id, state)
+      this.save()
+      return { rows: [state] as any, rowCount: 1 }
+    }
+
+    if (upper.startsWith('SELECT') && upper.includes('FROM USER_NOTIFICATION_STATE')) {
+      let states = Array.from(this.tables.user_notification_state.values())
+      if (upper.includes('WHERE USER_ID = $1')) {
+        states = states.filter(s => s.user_id === params[0])
+      }
+      return { rows: states as any, rowCount: states.length }
+    }
+
+    // 21. PUSH_SUBSCRIPTIONS
+    if (upper.startsWith('INSERT INTO PUSH_SUBSCRIPTIONS')) {
+      const sub = {
+        id: params[0],
+        user_id: params[1],
+        endpoint: params[2],
+        p256dh_key: params[3],
+        auth_key: params[4],
+        created_at: new Date().toISOString(),
+      }
+      this.tables.push_subscriptions.set(sub.id, sub)
+      this.save()
+      return { rows: [sub] as any, rowCount: 1 }
+    }
+
+    if (upper.startsWith('SELECT') && upper.includes('FROM PUSH_SUBSCRIPTIONS')) {
+      let subs = Array.from(this.tables.push_subscriptions.values())
+      if (upper.includes('WHERE USER_ID = $1')) {
+        subs = subs.filter(s => s.user_id === params[0])
+      }
+      return { rows: subs as any, rowCount: subs.length }
+    }
+
+    if (upper.startsWith('DELETE FROM PUSH_SUBSCRIPTIONS')) {
+      if (upper.includes('WHERE USER_ID = $1 AND ENDPOINT = $2')) {
+        let deleted = 0
+        for (const [id, s] of this.tables.push_subscriptions.entries()) {
+          if (s.user_id === params[0] && s.endpoint === params[1]) {
+            this.tables.push_subscriptions.delete(id)
+            deleted++
+          }
+        }
+        this.save()
+        return { rows: [], rowCount: deleted }
+      }
     }
 
     console.warn('Unhandled SQL in Fallback Database Client:', sqlText)
@@ -442,4 +592,14 @@ export function getDb(): DatabaseClient {
 export async function runQuery<T = any>(sqlText: string, params?: any[]): Promise<{ rows: T[]; rowCount: number }> {
   const db = getDb()
   return db.query<T>(sqlText, params)
+}
+
+export async function executeQuery<T = any>(sqlText: string, params?: any[]): Promise<T[]> {
+  const res = await runQuery<T>(sqlText, params)
+  return res.rows
+}
+
+export async function executeMutation(sqlText: string, params?: any[]): Promise<{ rowCount: number }> {
+  const res = await runQuery(sqlText, params)
+  return { rowCount: res.rowCount }
 }

@@ -34,13 +34,19 @@ export async function POST(
     }
 
     const body = await req.json().catch(() => ({}))
-    const { symbol } = body
+    const { symbol, watchReason, targetPrice } = body
 
     if (!symbol) {
       return NextResponse.json({ data: null, error: 'Symbol is required' }, { status: 400 })
     }
 
-    const item = await WatchlistService.addSymbolToWatchlist(params.id, session.userId, symbol)
+    const item = await WatchlistService.addSymbolToWatchlist(
+      params.id,
+      session.userId,
+      symbol,
+      watchReason || 'JUST_WATCHING',
+      targetPrice !== undefined && targetPrice !== null && targetPrice !== '' ? Number(targetPrice) : null
+    )
     return NextResponse.json({ data: { item }, error: null }, { status: 201 })
   } catch (error: any) {
     return NextResponse.json({ data: null, error: error.message || 'Internal error' }, { status: 400 })

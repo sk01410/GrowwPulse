@@ -103,12 +103,15 @@ export class AuthService {
       }
     }
 
+    const now = new Date().toISOString()
+    await db.query('UPDATE users SET updated_at = $1 WHERE id = $2', [now, userRow.id])
+
     const user: UserRecord = {
       id: userRow.id,
       auth_provider_id: userRow.auth_provider_id,
       email: userRow.email,
       created_at: userRow.created_at,
-      updated_at: userRow.updated_at,
+      updated_at: now,
     }
 
     const token = await createSessionToken({

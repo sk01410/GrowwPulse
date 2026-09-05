@@ -13,7 +13,7 @@ interface SymbolResult {
 interface SymbolSearchModalProps {
   isOpen: boolean
   onClose: () => void
-  onSymbolAdded: (symbol: string) => void
+  onSymbolAdded: (symbol: string, watchReason?: string, targetPrice?: number) => void
   existingSymbols: string[]
 }
 
@@ -27,6 +27,8 @@ export function SymbolSearchModal({
   const [results, setResults] = useState<SymbolResult[]>([])
   const [loading, setLoading] = useState(false)
   const [addingSymbol, setAddingSymbol] = useState<string | null>(null)
+  const [watchReason, setWatchReason] = useState<string>('JUST_WATCHING')
+  const [targetPrice, setTargetPrice] = useState<string>('')
 
   useEffect(() => {
     if (!isOpen) return
@@ -46,7 +48,8 @@ export function SymbolSearchModal({
   const handleAdd = async (symbol: string) => {
     setAddingSymbol(symbol)
     try {
-      await onSymbolAdded(symbol)
+      const parsedPrice = targetPrice && !isNaN(Number(targetPrice)) ? Number(targetPrice) : undefined
+      await onSymbolAdded(symbol, watchReason, parsedPrice)
     } finally {
       setAddingSymbol(null)
     }
@@ -73,16 +76,65 @@ export function SymbolSearchModal({
         </div>
 
         {/* Search input */}
-        <div className="relative mb-4">
+        <div className="relative mb-3">
           <Search className="w-4 h-4 text-[#9CA3AF] absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search stocks by name or ticker (e.g. Reliance, TCS, Infy)..."
-            className="w-full pl-10 pr-4 py-3 rounded-xl bg-[#F8F9FA] border border-[#E5E7EB] text-[#1F2937] placeholder-[#9CA3AF] text-sm focus:outline-none focus:bg-white focus:border-[#00B386] focus:ring-3 focus:ring-[#E8F8F3] transition-all"
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#F8F9FA] border border-[#E5E7EB] text-[#1F2937] placeholder-[#9CA3AF] text-sm focus:outline-none focus:bg-white focus:border-[#00B386] focus:ring-3 focus:ring-[#E8F8F3] transition-all"
             autoFocus
           />
+        </div>
+
+        {/* Intent Tagging Options */}
+        <div className="mb-4 p-3 bg-[#F8F9FA] border border-[#E5E7EB] rounded-xl space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-[11px] font-bold text-[#4B5563] uppercase tracking-wider">
+              Why are you watching this?
+            </label>
+            <span className="text-[10px] text-[#9CA3AF]">Customizes explanation</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { id: 'JUST_WATCHING', label: '👀 Just Watching', desc: 'General observation' },
+              { id: 'PRICE_TARGET', label: '🎯 Price Target', desc: 'Alert on price level' },
+              { id: 'OWN_IT', label: '💼 I Own It', desc: 'Portfolio holding' },
+              { id: 'CONSIDERING_BUY', label: '🛒 Considering Buy', desc: 'Evaluating entry' },
+            ].map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setWatchReason(opt.id)}
+                className={`text-left p-2 rounded-lg border text-xs transition-all ${
+                  watchReason === opt.id
+                    ? 'border-[#00B386] bg-[#EAF8F3] text-[#00A878] font-bold shadow-xs'
+                    : 'border-[#E5E7EB] bg-white text-[#4B5563] hover:border-[#D1D5DB]'
+                }`}
+              >
+                <div>{opt.label}</div>
+                <div className="text-[10px] text-[#9CA3AF] font-normal">{opt.desc}</div>
+              </button>
+            ))}
+          </div>
+
+          {watchReason === 'PRICE_TARGET' && (
+            <div className="pt-1">
+              <label className="block text-[11px] font-semibold text-[#4B5563] mb-1">
+                Target Price (₹)
+              </label>
+              <input
+                type="number"
+                step="any"
+                value={targetPrice}
+                onChange={(e) => setTargetPrice(e.target.value)}
+                placeholder="e.g. 1300.00"
+                className="w-full px-3 py-1.5 rounded-lg bg-white border border-[#E5E7EB] text-sm text-[#1F2937] focus:outline-none focus:border-[#00B386]"
+              />
+            </div>
+          )}
         </div>
 
         {/* Results List */}
