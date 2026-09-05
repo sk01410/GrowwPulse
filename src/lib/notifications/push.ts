@@ -2,14 +2,14 @@
 import webpush from 'web-push';
 import { executeQuery } from '@/lib/db';
 
-const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BM-MockVapidPublicKeyForGrowwPulseDevelopmentTestingOnlyKey1234567890';
-const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || 'mock_vapid_private_key_development_32_bytes_long';
-const vapidSubject = process.env.VAPID_SUBJECT || 'mailto:admin@growwpulse.local';
+const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BEAXYZDU_uqD_a04UwSfUbtVWHnpGd8k1ApSZ-1w8WVKq8Scp4foBiLnVnwuC0YOUGShkjpfgDSuikIvXYPDFXY';
+const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || 'EApHI44Ug_fZca30JLO-8qvuGIjw7KTaDqG4Zv7gfaU';
+const vapidSubject = process.env.VAPID_SUBJECT || 'mailto:mail@sukhad.dev';
 
 try {
   webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
 } catch (err) {
-  console.warn('[WebPush] VAPID details could not be initialized with mock keys. Real push delivery will fallback gracefully.');
+  console.warn('[WebPush] VAPID details initialization note:', err);
 }
 
 export interface PushNotificationPayload {

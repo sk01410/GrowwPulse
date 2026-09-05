@@ -88,12 +88,15 @@ export function NotificationSettingsModal({ isOpen, onClose }: NotificationSetti
         return
       }
 
-      const registration = await navigator.serviceWorker.register('/sw.js')
+      const pubKey = vapidPublicKey || 'BEAXYZDU_uqD_a04UwSfUbtVWHnpGd8k1ApSZ-1w8WVKq8Scp4foBiLnVnwuC0YOUGShkjpfgDSuikIvXYPDFXY'
+      const keyArray = urlBase64ToUint8Array(pubKey)
+      if (!keyArray || keyArray.length === 0) {
+        throw new Error('Invalid VAPID public key encoding')
+      }
+
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(
-          vapidPublicKey || 'BM-MockVapidPublicKeyForGrowwPulseDevelopmentTestingOnlyKey1234567890'
-        ),
+        applicationServerKey: keyArray,
       })
 
       const subJson = subscription.toJSON()
@@ -328,12 +331,18 @@ export function NotificationSettingsModal({ isOpen, onClose }: NotificationSetti
 }
 
 function urlBase64ToUint8Array(base64String: string) {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
-  const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/')
-  const rawData = window.atob(base64)
-  const outputArray = new Uint8Array(rawData.length)
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i)
+  try {
+    if (!base64String || typeof base64String !== 'string') return new Uint8Array(0)
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+    const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/')
+    const rawData = window.atob(base64)
+    const outputArray = new Uint8Array(rawData.length)
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i)
+    }
+    return outputArray
+  } catch (err) {
+    console.warn('[WebPush] Base64 decode fallback note:', err)
+    return new Uint8Array(0)
   }
-  return outputArray
 }

@@ -87,13 +87,23 @@ class PostgresClient implements DatabaseClient {
         CREATE INDEX IF NOT EXISTS idx_user_symbol_state_user ON user_symbol_state(user_id);
         CREATE TABLE IF NOT EXISTS user_notification_preferences (
           user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-          email_enabled BOOLEAN NOT NULL DEFAULT false,
-          email_frequency TEXT NOT NULL DEFAULT 'HIGH_ATTENTION_ONLY',
-          push_enabled BOOLEAN NOT NULL DEFAULT false,
-          email TEXT,
+          email_enabled BOOLEAN NOT NULL DEFAULT true,
+          email_address TEXT,
+          digest_frequency TEXT NOT NULL DEFAULT 'AFTERNOON_DIGEST',
+          calm_state_emails BOOLEAN NOT NULL DEFAULT true,
+          push_enabled BOOLEAN NOT NULL DEFAULT true,
+          push_calm_state BOOLEAN NOT NULL DEFAULT false,
+          quiet_hours_start TEXT DEFAULT '22:00',
+          quiet_hours_end TEXT DEFAULT '08:00',
           created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
+        ALTER TABLE user_notification_preferences ADD COLUMN IF NOT EXISTS email_address TEXT;
+        ALTER TABLE user_notification_preferences ADD COLUMN IF NOT EXISTS digest_frequency TEXT DEFAULT 'AFTERNOON_DIGEST';
+        ALTER TABLE user_notification_preferences ADD COLUMN IF NOT EXISTS calm_state_emails BOOLEAN DEFAULT true;
+        ALTER TABLE user_notification_preferences ADD COLUMN IF NOT EXISTS push_calm_state BOOLEAN DEFAULT false;
+        ALTER TABLE user_notification_preferences ADD COLUMN IF NOT EXISTS quiet_hours_start TEXT DEFAULT '22:00';
+        ALTER TABLE user_notification_preferences ADD COLUMN IF NOT EXISTS quiet_hours_end TEXT DEFAULT '08:00';
         CREATE TABLE IF NOT EXISTS user_notification_state (
           user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
           last_pushed_at TIMESTAMPTZ,

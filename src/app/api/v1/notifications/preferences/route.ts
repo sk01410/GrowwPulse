@@ -12,10 +12,21 @@ async function resolveUserId(request: NextRequest): Promise<{ userId: string; em
   const users = await executeQuery<any>(`SELECT id, email FROM users ORDER BY created_at DESC LIMIT 1`);
   if (users.length > 0) return { userId: users[0].id, email: users[0].email };
 
-  const allWl = await executeQuery<any>(`SELECT user_id FROM watchlists LIMIT 1`);
-  if (allWl.length > 0) return { userId: allWl[0].user_id, email: 'sukhad@growwpulse.local' };
+  const defaultId = 'usr_sukhad_default_demo';
+  const defaultEmail = 'sukhad@growwpulse.local';
 
-  return { userId: 'usr_sukhad_default_demo', email: 'sukhad@growwpulse.local' };
+  try {
+    await executeMutation(
+      `INSERT INTO users (id, auth_provider_id, email, password_hash)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO NOTHING`,
+      [defaultId, 'demo_sukhad', defaultEmail, 'mock_hash']
+    );
+  } catch (e) {
+    // Ignore if already created
+  }
+
+  return { userId: defaultId, email: defaultEmail };
 }
 
 export async function GET(request: NextRequest) {
