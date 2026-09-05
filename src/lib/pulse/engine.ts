@@ -93,13 +93,37 @@ export class PulseEngine {
       }
     }
 
-    // 2. Identify reference observation (closest on or before referenceTime, or first available)
-    let refObs = sorted.filter(o => new Date(o.sourceTimestamp) <= referenceTime).pop()
-    if (!refObs) refObs = sorted[0]
-
-    // 3. Identify evaluation observation (closest on or before evaluationTime, or last available)
+    // 2. Identify evaluation observation (closest on or before evaluationTime, or last available)
     let evalObs = sorted.filter(o => new Date(o.sourceTimestamp) <= evaluationTime).pop()
     if (!evalObs) evalObs = sorted[sorted.length - 1]
+
+    // 3. Identify reference observation (closest on or before referenceTime)
+    let refObs = sorted.filter(o => new Date(o.sourceTimestamp) <= referenceTime).pop()
+    if (!refObs) {
+      refObs = sorted[0]
+    }
+
+    // Edge case: if refObs and evalObs collapsed to the identical observation (e.g. market closed / weekend)
+    // and the requested absence window has elapsed time, select the observation that reflects that absence window
+    if (refObs.sourceTimestamp === evalObs.sourceTimestamp && sorted.length > 1) {
+      const awayDurationMs = evaluationTime.getTime() - referenceTime.getTime()
+      if (awayDurationMs > 0) {
+        const evalObsTime = new Date(evalObs.sourceTimestamp).getTime()
+        const targetRefTime = new Date(evalObsTime - awayDurationMs)
+        const candidateRef = sorted.filter(o => new Date(o.sourceTimestamp) <= targetRefTime).pop()
+        if (candidateRef && candidateRef.sourceTimestamp !== evalObs.sourceTimestamp) {
+          refObs = candidateRef
+        } else {
+          // If candidate is before the first snapshot or identical, pick earlier snapshot
+          const evalIdx = sorted.findIndex(o => o.sourceTimestamp === evalObs.sourceTimestamp)
+          if (evalIdx > 0) {
+            // Pick a snapshot proportional to the away duration or first in session
+            const lookbackSteps = Math.min(evalIdx, Math.max(1, Math.round(awayDurationMs / (config.baseIntervalMinutes * 60 * 1000))))
+            refObs = sorted[Math.max(0, evalIdx - lookbackSteps)]
+          }
+        }
+      }
+    }
 
     const refPrice = Number(refObs.price)
     const evalPrice = Number(evalObs.price)

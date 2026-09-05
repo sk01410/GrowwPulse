@@ -65,6 +65,26 @@ describe('Phase 5: Pure Pulse Analytics Engine', () => {
     expect(res2.expectedMovement / res1.expectedMovement).toBeCloseTo(2.0, 1)
   })
 
+  it('should properly evaluate movement across market closure / weekend when timestamps fall beyond latest snapshot', () => {
+    // 10 snapshots ending at 15:15 with price drop from 1160 to 1130
+    const prices = [1150, 1152, 1155, 1158, 1160, 1155, 1148, 1140, 1135, 1130]
+    const obs = createObservations('INFY', prices)
+    const lastSnapTime = new Date(baseTime + 9 * 15 * 60 * 1000)
+
+    // User checks on weekend (e.g. 24 hours after last market close)
+    const weekendRef = new Date(lastSnapTime.getTime() + 20 * 60 * 60 * 1000)
+    const weekendEval = new Date(lastSnapTime.getTime() + 24 * 60 * 60 * 1000) // 4 hour absence
+
+    const event = PulseEngine.evaluateSymbol('INFY', weekendRef, weekendEval, obs)
+
+    // Verify refObs does not collapse to evalObs, but captures the 4-hour movement prior to close
+    expect(event.symbol).toBe('INFY')
+    expect(event.evaluationPrice).toBe(1130)
+    expect(event.referencePrice).toBeGreaterThan(1130)
+    expect(event.returnPercent).toBeLessThan(0)
+    expect(event.referenceTime).not.toBe(event.evaluationTime)
+  })
+
   it('should honestly report INSUFFICIENT confidence when data is scarce', () => {
     // Only 2 data points
     const obs = createObservations('NEW_STOCK', [500, 520])

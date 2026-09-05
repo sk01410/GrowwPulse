@@ -77,19 +77,31 @@ export class YahooFinanceProvider implements MarketDataProvider {
     const formatted = this.formatSymbol(symbol)
     const period1 = Math.floor(from.getTime() / 1000)
     const period2 = Math.floor(to.getTime() / 1000)
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(formatted)}?period1=${period1}&period2=${period2}&interval=${interval}`
-
+    let url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(formatted)}?period1=${period1}&period2=${period2}&interval=${interval}`
+    // If period is within 5 days or recent, also include range fallback if needed
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 10000)
 
     try {
-      const res = await fetch(url, {
+      let res = await fetch(url, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko)',
           'Accept': 'application/json',
         },
         signal: controller.signal,
       })
+
+      if (!res.ok) {
+        // Fallback to range=5d
+        url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(formatted)}?range=5d&interval=${interval}`
+        res = await fetch(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko)',
+            'Accept': 'application/json',
+          },
+          signal: controller.signal,
+        })
+      }
 
       if (!res.ok) {
         throw new Error(`Failed to fetch historical market data for ${symbol}: HTTP ${res.status}`)
