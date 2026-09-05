@@ -165,7 +165,9 @@ export class PulseService {
 
       if (snapshots.length < config.minimumObservationsForBaseline) {
         try {
-          await MarketSnapshotService.syncHistoricalData(sym, baselineStart, evaluationTime, '15m')
+          const durationDays = (evaluationTime.getTime() - baselineStart.getTime()) / (1000 * 60 * 60 * 24)
+          const interval = durationDays > 5 ? '1h' : '15m'
+          await MarketSnapshotService.syncHistoricalData(sym, baselineStart, evaluationTime, interval)
           snapshots = await MarketSnapshotService.getSnapshotsByRange(sym, baselineStart, evaluationTime)
         } catch (err) {
           console.warn(`Historical sync error for ${sym} in replay:`, err)
