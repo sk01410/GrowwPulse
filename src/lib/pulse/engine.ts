@@ -138,28 +138,6 @@ export class PulseEngine {
       refObs = sorted[0]
     }
 
-    // Edge case: if refObs and evalObs collapsed to the identical observation (e.g. market closed / weekend)
-    // and the requested absence window has elapsed time, select the observation that reflects that absence window
-    if (refObs.sourceTimestamp === evalObs.sourceTimestamp && sorted.length > 1) {
-      const awayDurationMs = evaluationTime.getTime() - referenceTime.getTime()
-      if (awayDurationMs > 0) {
-        const evalObsTime = new Date(evalObs.sourceTimestamp).getTime()
-        const targetRefTime = new Date(evalObsTime - awayDurationMs)
-        const candidateRef = sorted.filter(o => new Date(o.sourceTimestamp) <= targetRefTime).pop()
-        if (candidateRef && candidateRef.sourceTimestamp !== evalObs.sourceTimestamp) {
-          refObs = candidateRef
-        } else {
-          // If candidate is before the first snapshot or identical, pick earlier snapshot
-          const evalIdx = sorted.findIndex(o => o.sourceTimestamp === evalObs.sourceTimestamp)
-          if (evalIdx > 0) {
-            // Pick a snapshot proportional to the away duration or first in session
-            const lookbackSteps = Math.min(evalIdx, Math.max(1, Math.round(awayDurationMs / (config.baseIntervalMinutes * 60 * 1000))))
-            refObs = sorted[Math.max(0, evalIdx - lookbackSteps)]
-          }
-        }
-      }
-    }
-
     const refPrice = Number(refObs.price)
     const evalPrice = Number(evalObs.price)
 
@@ -242,15 +220,20 @@ export class PulseEngine {
     }
 
     // 11. Deterministic Dynamic Natural Language Explanation (Section 39, 163)
-    const direction = rawReturn < 0 ? 'fell' : 'rose'
-    const absPctStr = `${Math.abs(returnPercent)}%`
     let explanation = ''
     let whySurfaced = ''
 
-    if (confidence === 'INSUFFICIENT') {
+    if (rawReturn === 0) {
+      explanation = `${symbol} remained unchanged at ₹${evalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })} since you last checked (market was closed or stationary during this interval).`
+      whySurfaced = `No price movement occurred during this interval.`
+    } else if (confidence === 'INSUFFICIENT') {
+      const direction = rawReturn < 0 ? 'fell' : 'rose'
+      const absPctStr = `${Math.abs(returnPercent)}%`
       explanation = `${symbol} ${direction} ${absPctStr} since you last checked. Not enough historical data to determine whether this movement was unusual.`
       whySurfaced = 'Surfaced because of observed price change; statistical baseline is limited.'
     } else {
+      const direction = rawReturn < 0 ? 'fell' : 'rose'
+      const absPctStr = `${Math.abs(returnPercent)}%`
       explanation = `${symbol} ${direction} ${absPctStr} since you last checked. That movement was approximately ${unusualness}× its typical expected movement (±${expectedMovementPercent}%) over a comparable interval.`
       if (volumeMultiplier && volumeMultiplier >= 1.5) {
         explanation += ` Trading activity was also elevated (${volumeMultiplier}× average volume).`
