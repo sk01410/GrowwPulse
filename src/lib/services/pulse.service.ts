@@ -1,9 +1,12 @@
 import { WatchlistService } from '@/lib/watchlists/service'
 import { SeenService } from './seen.service'
+import { AuthService } from '@/lib/auth/service'
 import { MarketSnapshotService } from './market-snapshot.service'
-import { PulseEngine, PulseEngineResult, PulseEvent } from '@/lib/pulse/engine'
+import { PulseEngine, PulseEngineResult, PulseEvent, SymbolExtraContext } from '@/lib/pulse/engine'
 import { HistoricalObservation } from '@/lib/market/types'
 import { defaultPulseConfig, PulseConfig } from '@/lib/pulse/config'
+import { NewsService } from '@/lib/news/news.service'
+import { SectorService } from '@/lib/market/sector.service'
 
 export interface LivePulseRequest {
   userId: string
@@ -24,7 +27,7 @@ export class PulseService {
    * Generates Live Pulse for authenticated user.
    * Section 27, 49, 91:
    * 1. Load active watchlist
-   * 2. Load user's last_seen_timestamps
+   * 2. Load user's last_seen_timestamps & login session
    * 3. Sync latest market observations
    * 4. Retrieve historical lookback + interval snapshots
    * 5. Run deterministic Pulse Engine
@@ -100,6 +103,17 @@ export class PulseService {
     // Baseline lookback: 7 days prior to referenceTime
     const baselineStart = new Date(referenceTime.getTime() - 7 * 24 * 60 * 60 * 1000)
     const symbolObservationsMap = new Map<string, HistoricalObservation[]>()
+    const symbolContextsMap = new Map<string, SymbolExtraContext>()
+
+    for (const item of targetWl.items || []) {
+      const sym = item.symbol.toUpperCase()
+      symbolContextsMap.set(sym, {
+        watchReason: item.watch_reason || 'JUST_WATCHING',
+        targetPrice: item.target_price !== undefined ? Number(item.target_price) : null,
+        mutedUntil: item.muted_until || null,
+        portfolioHolding: item.watch_reason === 'OWN_IT' ? 75000 : (item.watch_reason === 'CONSIDERING_BUY' ? 25000 : undefined),
+      })
+    }
 
     for (const sym of symbols) {
       try {
@@ -129,14 +143,54 @@ export class PulseService {
         }))
 
         symbolObservationsMap.set(sym, observations)
+
+        // Calculate move % and enrich context
+        let movePct = 0
+        if (observations.length >= 2) {
+          const first = observations[0].price
+          const last = observations[observations.length - 1].price
+          if (first > 0) movePct = ((last - first) / first) * 100
+        }
+        const sectorContext = SectorService.getSectorContext(sym, movePct)
+        const catalyst = await NewsService.getPrimaryCatalyst(sym, movePct)
+
+        const existing = symbolContextsMap.get(sym) || {}
+        symbolContextsMap.set(sym, {
+          ...existing,
+          sectorContext,
+          catalyst: catalyst || undefined,
+        })
       } catch (err) {
         console.error(`Error processing symbol ${sym} in PulseService:`, err)
         symbolObservationsMap.set(sym, [])
       }
     }
 
+    // Feature #1 & #6: Market Context Benchmark (Nifty 50)
+    let marketHeadline: string | undefined = undefined
+    try {
+      const niftySnapshots = await MarketSnapshotService.getSnapshotsByRange('^NSEI', baselineStart, evaluationTime).catch(() => [])
+      if (niftySnapshots.length >= 2) {
+        const first = Number(niftySnapshots[0].price)
+        const last = Number(niftySnapshots[niftySnapshots.length - 1].price)
+        if (first > 0 && last > 0) {
+          const niftyReturn = ((last - first) / first) * 100
+          marketHeadline = `Nifty moved ${niftyReturn >= 0 ? '+' : ''}${niftyReturn.toFixed(1)}% today.`
+        }
+      }
+    } catch {
+      // ignore benchmark error
+    }
+
     // 4. Run Pulse Engine
-    return PulseEngine.evaluateWatchlist(referenceTime, evaluationTime, symbolObservationsMap, config)
+    return PulseEngine.evaluateWatchlist(
+      referenceTime,
+      evaluationTime,
+      symbolObservationsMap,
+      config,
+      symbolContextsMap,
+      marketHeadline
+    )
   }
 
   /**
@@ -159,6 +213,17 @@ export class PulseService {
     const symbols = (targetWl?.items || []).map(i => i.symbol.toUpperCase())
     const baselineStart = new Date(referenceTime.getTime() - 7 * 24 * 60 * 60 * 1000)
     const symbolObservationsMap = new Map<string, HistoricalObservation[]>()
+    const symbolContextsMap = new Map<string, SymbolExtraContext>()
+
+    for (const item of targetWl?.items || []) {
+      const sym = item.symbol.toUpperCase()
+      symbolContextsMap.set(sym, {
+        watchReason: item.watch_reason || 'JUST_WATCHING',
+        targetPrice: item.target_price !== undefined ? Number(item.target_price) : null,
+        mutedUntil: item.muted_until || null,
+        portfolioHolding: item.watch_reason === 'OWN_IT' ? 75000 : (item.watch_reason === 'CONSIDERING_BUY' ? 25000 : undefined),
+      })
+    }
 
     for (const sym of symbols) {
       let snapshots = await MarketSnapshotService.getSnapshotsByRange(sym, baselineStart, evaluationTime)
@@ -184,9 +249,32 @@ export class PulseService {
       }))
 
       symbolObservationsMap.set(sym, observations)
+
+      // Calculate move % and enrich context
+      let movePct = 0
+      if (observations.length >= 2) {
+        const first = observations[0].price
+        const last = observations[observations.length - 1].price
+        if (first > 0) movePct = ((last - first) / first) * 100
+      }
+      const sectorContext = SectorService.getSectorContext(sym, movePct)
+      const catalyst = await NewsService.getPrimaryCatalyst(sym, movePct)
+
+      const existing = symbolContextsMap.get(sym) || {}
+      symbolContextsMap.set(sym, {
+        ...existing,
+        sectorContext,
+        catalyst: catalyst || undefined,
+      })
     }
 
     // Run identical Pulse Engine
-    return PulseEngine.evaluateWatchlist(referenceTime, evaluationTime, symbolObservationsMap, config)
+    return PulseEngine.evaluateWatchlist(
+      referenceTime,
+      evaluationTime,
+      symbolObservationsMap,
+      config,
+      symbolContextsMap
+    )
   }
 }

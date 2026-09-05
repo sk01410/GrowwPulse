@@ -5,11 +5,16 @@ export class YahooFinanceProvider implements MarketDataProvider {
 
   private formatSymbol(symbol: string): string {
     const s = symbol.trim().toUpperCase()
+    // Handle specific ticker renamings/aliases (Zomato was renamed to Eternal on NSE)
+    if (s.includes('ZOMATO') || s.includes('ETERNAL')) {
+      if (s.endsWith('.BO')) return 'ETERNAL.BO'
+      return 'ETERNAL.NS'
+    }
     // If it's a known US symbol, keep as is
     if (['AAPL', 'MSFT', 'NVDA', 'GOOGL', 'GOOG', 'AMZN', 'META', 'TSLA', 'SPY', 'QQQ'].includes(s)) {
       return s
     }
-    // If already has suffix, return
+    // If already has exchange suffix (.NS, .BO, etc.), return as is
     if (s.includes('.')) return s
     // Default Indian market stocks to National Stock Exchange (.NS)
     return `${s}.NS`

@@ -22,6 +22,31 @@ export interface PulseEvent {
   explanation: string
   whySurfaced: string
   hasMeaningfulMovement: boolean
+  exchange?: string
+  watchReason?: string
+  targetPrice?: number | null
+  isMuted?: boolean
+  mutedUntil?: string | null
+  marketContext?: string
+  patternMemory?: string
+  catalyst?: {
+    headline: string
+    source: string
+    category: string
+    sentiment: string
+    summary: string
+    url?: string
+  }
+  sectorContext?: {
+    sectorName: string
+    benchmarkIndex: string
+    sectorChangePercent: number
+    idiosyncraticDivergence: number
+    isSectorWide: boolean
+    relativeNarrative: string
+  }
+  portfolioHolding?: number
+  portfolioRankBoost?: number
   provenance: {
     source: string
     observedTimestamp: string
@@ -37,6 +62,7 @@ export interface PulseSummary {
   totalStocks: number
   movedCount: number
   attentionCount: number
+  marketHeadline?: string
 }
 
 export interface PulseEngineResult {
@@ -81,6 +107,32 @@ export function calculateTradingMinutes(startDate: Date, endDate: Date): number 
   return Math.max(1, businessDays * 375)
 }
 
+export interface SymbolExtraContext {
+  exchange?: string
+  watchReason?: string
+  targetPrice?: number | null
+  mutedUntil?: string | null
+  marketContext?: string
+  patternMemory?: string
+  portfolioHolding?: number
+  catalyst?: {
+    headline: string
+    source: string
+    category: string
+    sentiment: string
+    summary: string
+    url?: string
+  }
+  sectorContext?: {
+    sectorName: string
+    benchmarkIndex: string
+    sectorChangePercent: number
+    idiosyncraticDivergence: number
+    isSectorWide: boolean
+    relativeNarrative: string
+  }
+}
+
 export class PulseEngine {
   /**
    * Pure deterministic calculation for a single symbol.
@@ -90,7 +142,8 @@ export class PulseEngine {
     referenceTime: Date,
     evaluationTime: Date,
     observations: HistoricalObservation[],
-    config: PulseConfig = defaultPulseConfig
+    config: PulseConfig = defaultPulseConfig,
+    context?: SymbolExtraContext
   ): PulseEvent {
     // 1. Sort observations chronologically
     const sorted = [...observations].sort(
@@ -98,6 +151,10 @@ export class PulseEngine {
     )
 
     const eventId = `evt_${symbol}_${referenceTime.getTime()}_${evaluationTime.getTime()}`
+
+    const isMuted = context?.mutedUntil
+      ? new Date(context.mutedUntil).getTime() > evaluationTime.getTime()
+      : false
 
     // Edge case: empty observations
     if (sorted.length === 0) {
@@ -119,6 +176,10 @@ export class PulseEngine {
         explanation: 'No market observations available for this interval.',
         whySurfaced: 'No data available to evaluate movement.',
         hasMeaningfulMovement: false,
+        watchReason: context?.watchReason,
+        targetPrice: context?.targetPrice,
+        isMuted,
+        mutedUntil: context?.mutedUntil,
         provenance: {
           source: 'N/A',
           observedTimestamp: evaluationTime.toISOString(),
@@ -219,7 +280,7 @@ export class PulseEngine {
       }
     }
 
-    // 11. Deterministic Dynamic Natural Language Explanation (Section 39, 163)
+    // 11. Deterministic Dynamic Natural Language Explanation (Section 39, 163 + Feature.md)
     let explanation = ''
     let whySurfaced = ''
 
@@ -237,6 +298,32 @@ export class PulseEngine {
       explanation = `${symbol} ${direction} ${absPctStr} since you last checked. That movement was approximately ${unusualness}× its typical expected movement (±${expectedMovementPercent}%) over a comparable interval.`
       if (volumeMultiplier && volumeMultiplier >= 1.5) {
         explanation += ` Trading activity was also elevated (${volumeMultiplier}× average volume).`
+      }
+
+      // Feature #2 Intent Tagging additions (Feature.md)
+      if (context?.watchReason === 'PRICE_TARGET' && context.targetPrice) {
+        const crossed = (refPrice < context.targetPrice && evalPrice >= context.targetPrice) ||
+                        (refPrice > context.targetPrice && evalPrice <= context.targetPrice) ||
+                        Math.abs(evalPrice - context.targetPrice) / context.targetPrice <= 0.01
+        if (crossed) {
+          explanation += ` You were waiting for this to hit ₹${context.targetPrice.toLocaleString('en-IN')} — it just reached that target.`
+        } else {
+          explanation += ` (Your target: ₹${context.targetPrice.toLocaleString('en-IN')}).`
+        }
+      } else if (context?.watchReason === 'OWN_IT' && attentionLevel !== 'NORMAL') {
+        explanation += ` You own this stock — notable movement occurred while you were away.`
+      } else if (context?.watchReason === 'CONSIDERING_BUY' && attentionLevel !== 'NORMAL') {
+        explanation += ` You were considering buying this — here's what changed.`
+      }
+
+      // Feature #6 Market Context
+      if (context?.marketContext) {
+        explanation += ` ${context.marketContext}`
+      }
+
+      // Feature #7 Pattern Memory
+      if (context?.patternMemory) {
+        explanation += ` ${context.patternMemory}`
       }
 
       if (attentionLevel === 'HIGH_ATTENTION') {
@@ -271,6 +358,17 @@ export class PulseEngine {
       explanation,
       whySurfaced,
       hasMeaningfulMovement,
+      exchange: context?.exchange || (symbol.toUpperCase().endsWith('.BO') ? 'BSE' : 'NSE'),
+      watchReason: context?.watchReason,
+      targetPrice: context?.targetPrice,
+      isMuted,
+      mutedUntil: context?.mutedUntil,
+      marketContext: context?.marketContext,
+      patternMemory: context?.patternMemory,
+      catalyst: context?.catalyst,
+      sectorContext: context?.sectorContext,
+      portfolioHolding: context?.portfolioHolding,
+      portfolioRankBoost: (context?.portfolioHolding && context.portfolioHolding > 50000) ? 1.5 : (context?.portfolioHolding && context.portfolioHolding > 10000 ? 0.8 : 0),
       provenance: {
         source: evalObs.source || 'MarketDataProvider',
         observedTimestamp: evalObs.sourceTimestamp,
@@ -287,12 +385,15 @@ export class PulseEngine {
     referenceTime: Date,
     evaluationTime: Date,
     symbolObservationsMap: Map<string, HistoricalObservation[]>,
-    config: PulseConfig = defaultPulseConfig
+    config: PulseConfig = defaultPulseConfig,
+    symbolContextsMap?: Map<string, SymbolExtraContext>,
+    marketHeadline?: string
   ): PulseEngineResult {
     const events: PulseEvent[] = []
 
     for (const [symbol, observations] of symbolObservationsMap.entries()) {
-      const event = this.evaluateSymbol(symbol, referenceTime, evaluationTime, observations, config)
+      const ctx = symbolContextsMap?.get(symbol)
+      const event = this.evaluateSymbol(symbol, referenceTime, evaluationTime, observations, config, ctx)
       events.push(event)
     }
 
@@ -309,20 +410,26 @@ export class PulseEngine {
     }
 
     const sortedEvents = [...events].sort((a, b) => {
+      // 1. Attention Priority (HIGH_ATTENTION > IMPORTANT > WATCH > NORMAL)
       const rankDiff = attentionRankMap[b.attentionLevel] - attentionRankMap[a.attentionLevel]
       if (rankDiff !== 0) return rankDiff
 
-      const unDiff = b.unusualness - a.unusualness
-      if (unDiff !== 0) return unDiff
+      // 2. Portfolio-Weighted Impact Boost (Personalization)
+      const scoreA = a.unusualness + (a.portfolioRankBoost || 0)
+      const scoreB = b.unusualness + (b.portfolioRankBoost || 0)
+      const scoreDiff = scoreB - scoreA
+      if (Math.abs(scoreDiff) > 0.05) return scoreDiff
 
+      // 3. Absolute return DESC
       const retDiff = Math.abs(b.return) - Math.abs(a.return)
       if (retDiff !== 0) return retDiff
 
       return a.symbol.localeCompare(b.symbol)
     })
 
-    const rankedEvents = sortedEvents.filter(e => e.attentionLevel !== 'NORMAL')
-    const normalEvents = sortedEvents.filter(e => e.attentionLevel === 'NORMAL')
+    // Feature #3: Muted symbols are excluded from attentionCount and rankedEvents, but appear in normalEvents
+    const rankedEvents = sortedEvents.filter(e => e.attentionLevel !== 'NORMAL' && !e.isMuted)
+    const normalEvents = sortedEvents.filter(e => e.attentionLevel === 'NORMAL' || e.isMuted)
 
     const movedCount = events.filter(e => e.hasMeaningfulMovement).length
     const attentionCount = rankedEvents.length
@@ -335,6 +442,7 @@ export class PulseEngine {
       totalStocks: events.length,
       movedCount,
       attentionCount,
+      marketHeadline,
     }
 
     return {
@@ -345,3 +453,4 @@ export class PulseEngine {
     }
   }
 }
+
