@@ -665,7 +665,7 @@ export function getDb(): DatabaseClient {
     return dbInstance
   }
 
-  const connectionString = process.env.DATABASE_URL
+  const connectionString = process.env.DATABASE_URL_POOLED || process.env.DATABASE_URL
 
   if (connectionString && !connectionString.includes('localhost:5432/growwpulse')) {
     try {
