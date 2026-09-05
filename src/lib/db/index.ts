@@ -386,19 +386,14 @@ class FallbackSqliteClient implements DatabaseClient {
         if (s.user_id === userId) {
           if (upper.includes('SYMBOL = $3')) {
             if (s.symbol === params[2].toUpperCase()) {
-              if (new Date(nowTs) >= new Date(s.last_seen_timestamp)) {
-                s.last_seen_timestamp = nowTs
-                s.updated_at = new Date().toISOString()
-                updatedCount++
-              }
-            }
-          } else {
-            // Update all
-            if (new Date(nowTs) >= new Date(s.last_seen_timestamp)) {
               s.last_seen_timestamp = nowTs
               s.updated_at = new Date().toISOString()
               updatedCount++
             }
+          } else {
+            s.last_seen_timestamp = nowTs
+            s.updated_at = new Date().toISOString()
+            updatedCount++
           }
         }
       }
