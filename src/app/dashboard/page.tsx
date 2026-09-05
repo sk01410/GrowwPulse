@@ -348,7 +348,8 @@ export default function DashboardPage() {
                               <ConfidenceBadge level={event.confidence} />
                             </div>
                             <div className="text-xs text-[#6B7280] mt-0.5 tabular-nums">
-                              ₹{event.evaluationPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                              ₹{event.evaluationPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}{' '}
+                              <span className="text-[#9CA3AF]">(was ₹{event.referencePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })})</span>
                             </div>
                           </div>
                         </div>
@@ -358,7 +359,10 @@ export default function DashboardPage() {
                           <div className="text-right">
                             <div className={`text-base font-bold flex items-center justify-end gap-0.5 tabular-nums ${isPositive ? 'text-[#00A878]' : 'text-[#EB5757]'}`}>
                               {isPositive ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
-                              {isPositive ? `+${event.returnPercent}%` : `${event.returnPercent}%`}
+                              <span>
+                                {event.evaluationPrice - event.referencePrice >= 0 ? '+' : '-'}₹{Math.abs(event.evaluationPrice - event.referencePrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+                                ({isPositive ? `+${event.returnPercent}%` : `${event.returnPercent}%`})
+                              </span>
                             </div>
                             <div className="text-xs font-semibold text-[#4B5563]">
                               {event.unusualness > 0 ? `${event.unusualness}× normal` : 'Normal move'}
@@ -460,11 +464,11 @@ export default function DashboardPage() {
                           <div className="flex items-center justify-between mb-1.5">
                             <span className="font-bold text-sm text-[#1F2937]">{event.symbol}</span>
                             <span className={`text-xs font-bold tabular-nums ${isPositive ? 'text-[#00A878]' : 'text-[#EB5757]'}`}>
-                              {isPositive ? `+${event.returnPercent}%` : `${event.returnPercent}%`}
+                              {event.evaluationPrice - event.referencePrice >= 0 ? '+' : '-'}₹{Math.abs(event.evaluationPrice - event.referencePrice).toFixed(2)} ({isPositive ? `+${event.returnPercent}%` : `${event.returnPercent}%`})
                             </span>
                           </div>
                           <div className="text-xs text-[#6B7280] flex items-center justify-between tabular-nums">
-                            <span>₹{event.evaluationPrice.toFixed(2)}</span>
+                            <span>₹{event.evaluationPrice.toFixed(2)} <span className="text-[11px] text-[#9CA3AF]">(was ₹{event.referencePrice.toFixed(2)})</span></span>
                             <span className="text-[11px] text-[#9CA3AF]">±{event.expectedMovementPercent}% expected</span>
                           </div>
                         </div>

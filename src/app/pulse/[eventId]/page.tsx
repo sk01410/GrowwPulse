@@ -165,10 +165,16 @@ export default function EventDetailPage({ params }: { params: { eventId: string 
               </div>
               <div className={`text-base font-bold flex items-center sm:justify-end gap-1 tabular-nums ${isPositive ? 'text-[#00A878]' : 'text-[#EB5757]'}`}>
                 {isPositive ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownRight className="w-5 h-5" />}
-                {isPositive ? `+${eventData.returnPercent}%` : `${eventData.returnPercent}%`}
+                <span>
+                  {eventData.evaluationPrice - eventData.referencePrice >= 0 ? '+' : '-'}₹{Math.abs(eventData.evaluationPrice - eventData.referencePrice).toFixed(2)}{' '}
+                  ({isPositive ? `+${eventData.returnPercent}%` : `${eventData.returnPercent}%`})
+                </span>
                 <span className="text-[#6B7280] text-xs font-normal ml-1">
                   ({eventData.unusualness > 0 ? `${eventData.unusualness}× normal` : 'normal'})
                 </span>
+              </div>
+              <div className="text-xs text-[#9CA3AF] mt-1">
+                Last checked price: ₹{eventData.referencePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </div>
             </div>
           </div>
@@ -182,7 +188,7 @@ export default function EventDetailPage({ params }: { params: { eventId: string 
               Price Movement Curve
             </h2>
             <p className="text-xs text-[#6B7280] mt-0.5">
-              Historical observations relative to your last-seen baseline (dashed line)
+              Observed price action relative to your reference last-seen point (dashed line at ₹{eventData.referencePrice.toFixed(2)})
             </p>
           </div>
 
@@ -203,22 +209,37 @@ export default function EventDetailPage({ params }: { params: { eventId: string 
               Was it unusual?
             </h3>
 
-            <div className="space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-[#F0F1F2]">
-                <span className="text-xs text-[#6B7280]">Actual Movement</span>
-                <span className={`text-sm font-bold tabular-nums ${isPositive ? 'text-[#00A878]' : 'text-[#EB5757]'}`}>
-                  {isPositive ? `+${eventData.returnPercent}%` : `${eventData.returnPercent}%`}
+            <div className="space-y-3.5">
+              <div className="flex items-center justify-between pb-2.5 border-b border-[#F0F1F2]">
+                <span className="text-xs text-[#6B7280]">Price When You Left</span>
+                <span className="text-sm font-semibold text-[#1F2937] tabular-nums">
+                  ₹{eventData.referencePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </span>
               </div>
 
-              <div className="flex items-center justify-between pb-3 border-b border-[#F0F1F2]">
+              <div className="flex items-center justify-between pb-2.5 border-b border-[#F0F1F2]">
+                <span className="text-xs text-[#6B7280]">Current Price</span>
+                <span className="text-sm font-bold text-[#1F2937] tabular-nums">
+                  ₹{eventData.evaluationPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between pb-2.5 border-b border-[#F0F1F2]">
+                <span className="text-xs text-[#6B7280]">Change Since Last Check</span>
+                <span className={`text-sm font-bold tabular-nums ${isPositive ? 'text-[#00A878]' : 'text-[#EB5757]'}`}>
+                  {eventData.evaluationPrice - eventData.referencePrice >= 0 ? '+' : '-'}₹{Math.abs(eventData.evaluationPrice - eventData.referencePrice).toFixed(2)}{' '}
+                  ({isPositive ? `+${eventData.returnPercent}%` : `${eventData.returnPercent}%`})
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between pb-2.5 border-b border-[#F0F1F2]">
                 <span className="text-xs text-[#6B7280]">Typical Expected Range</span>
                 <span className="text-sm font-bold text-[#1F2937] tabular-nums">
                   ±{eventData.expectedMovementPercent}%
                 </span>
               </div>
 
-              <div className="flex items-center justify-between pb-3 border-b border-[#F0F1F2]">
+              <div className="flex items-center justify-between pb-2.5 border-b border-[#F0F1F2]">
                 <span className="text-xs text-[#6B7280]">Unusualness Multiplier</span>
                 <span className="text-sm font-extrabold text-[#D97706] tabular-nums">
                   {eventData.unusualness > 0 ? `${eventData.unusualness}× normal` : 'Normal range'}

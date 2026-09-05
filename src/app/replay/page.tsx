@@ -343,7 +343,8 @@ export default function ReplayPage() {
                               <ConfidenceBadge level={event.confidence} />
                             </div>
                             <div className="text-xs text-[#6B7280] mt-0.5 tabular-nums">
-                              ₹{event.evaluationPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                              ₹{event.evaluationPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}{' '}
+                              <span className="text-[#9CA3AF]">(was ₹{event.referencePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })})</span>
                             </div>
                           </div>
                         </div>
@@ -351,7 +352,10 @@ export default function ReplayPage() {
                         <div className="text-right">
                           <div className={`text-base font-extrabold flex items-center justify-end gap-1 tabular-nums ${isPositive ? 'text-[#00A878]' : 'text-[#EB5757]'}`}>
                             {isPositive ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
-                            {isPositive ? `+${event.returnPercent}%` : `${event.returnPercent}%`}
+                            <span>
+                              {event.evaluationPrice - event.referencePrice >= 0 ? '+' : '-'}₹{Math.abs(event.evaluationPrice - event.referencePrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+                              ({isPositive ? `+${event.returnPercent}%` : `${event.returnPercent}%`})
+                            </span>
                           </div>
                           <div className="text-xs font-semibold text-[#4B5563]">
                             {event.unusualness > 0 ? `${event.unusualness}× normal movement` : 'Normal move'}
@@ -418,12 +422,15 @@ export default function ReplayPage() {
                           </div>
                           <div className={`text-sm font-bold flex items-center gap-0.5 tabular-nums ${isPositive ? 'text-[#00A878]' : 'text-[#EB5757]'}`}>
                             {isPositive ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
-                            {isPositive ? `+${event.returnPercent}%` : `${event.returnPercent}%`}
+                            <span>
+                              {event.evaluationPrice - event.referencePrice >= 0 ? '+' : '-'}₹{Math.abs(event.evaluationPrice - event.referencePrice).toFixed(2)}{' '}
+                              ({isPositive ? `+${event.returnPercent}%` : `${event.returnPercent}%`})
+                            </span>
                           </div>
                         </div>
 
                         <div className="text-xs text-[#6B7280] mb-2 tabular-nums">
-                          Price: ₹{event.evaluationPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })} (from ₹{event.referencePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })})
+                          Price: ₹{event.evaluationPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })} (was ₹{event.referencePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })})
                         </div>
 
                         <div className="text-[11px] text-[#6B7280] flex items-center justify-between pt-2 border-t border-[#F3F4F6]">
