@@ -94,6 +94,7 @@ export function NotificationSettingsModal({ isOpen, onClose }: NotificationSetti
         throw new Error('Invalid VAPID public key encoding')
       }
 
+      const registration = await navigator.serviceWorker.register('/sw.js')
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: keyArray,
